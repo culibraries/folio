@@ -1,0 +1,6 @@
+name: folio
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+description: Code for deploying FOLIO to AWS
