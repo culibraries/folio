@@ -14,13 +14,15 @@ vpc = ec2.Vpc(
 )
 
 igw = ec2.InternetGateway(
-    "folio-vpc-ig",
+    "folio-public-vpc-ig",
     vpc_id=vpc.id,
     tags=standard_tags("folio-vpc-ig")
 )
 
+# If a subnet's traffic is routed to a internet gateway it is public.
+
 eks_route_table = ec2.RouteTable(
-    "folio-vpc-route-table",
+    "folio-public-vpc-route-table",
     vpc_id=vpc.id,
     routes=[
         ec2.RouteTableRouteArgs(
@@ -31,25 +33,44 @@ eks_route_table = ec2.RouteTable(
     tags=standard_tags("folio-vpc-route-table")
 )
 
-## Subnets, one for each AZ in a region
+## Subnets, one public and one private for each AZ in a region.
+
+# For the definition of public and private subnets see:
+# https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Subnets.html#vpc-subnet-basics
 
 zones = get_availability_zones()
 subnet_ids = []
 
+# Create the public subnets. Public subnets are public because they
+# are associated with an InternetGateway.
 for zone in zones.names:
     vpc_subnet = ec2.Subnet(
-        f"folio-vpc-subnet-{zone}",
+        f"folio-public-vpc-subnet-{zone}",
         assign_ipv6_address_on_creation=False,
         vpc_id=vpc.id,
         map_public_ip_on_launch=True,
         cidr_block=f"10.100.{len(subnet_ids)}.0/24",
         availability_zone=zone,
-        tags=standard_tags(f"folio-sn-{zone}")
+        tags=standard_tags(f"folio-public-sn-{zone}")
     )
     ec2.RouteTableAssociation(
-        f"folio-vpc-route-table-assoc-{zone}",
+        f"folio-public-vpc-route-table-assoc-{zone}",
         route_table_id=eks_route_table.id,
         subnet_id=vpc_subnet.id,
+    )
+    subnet_ids.append(vpc_subnet.id)
+
+# Create the private subnets. Private subnets are private because
+# they are NOT associated with an InternetGateway or other gateway.
+for zone in zones.names:
+    vpc_subnet = ec2.Subnet(
+        f"folio-private-vpc-subnet-{zone}",
+        assign_ipv6_address_on_creation=False,
+        vpc_id=vpc.id,
+        map_public_ip_on_launch=True, # TODO What is this?
+        cidr_block=f"10.100.{len(subnet_ids)}.0/24",
+        availability_zone=zone,
+        tags=standard_tags(f"folio-private-sn-{zone}")
     )
     subnet_ids.append(vpc_subnet.id)
 
