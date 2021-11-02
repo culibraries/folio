@@ -1,28 +1,26 @@
+import pulumi
 from pulumi_aws import ec2, get_availability_zones
+from tags import standard_tags
 
 ## VPC
 
 vpc = ec2.Vpc(
-    "eks-vpc",
+    "folio-eks-vpc",
     cidr_block="10.100.0.0/16",
     instance_tenancy="default",
     enable_dns_hostnames=True,
     enable_dns_support=True,
-    tags={
-        "Name": "folio-eks-vpc",
-    },
+    tags=standard_tags("folio-eks-vpc")
 )
 
 igw = ec2.InternetGateway(
-    "vpc-ig",
+    "folio-vpc-ig",
     vpc_id=vpc.id,
-    tags={
-        "Name": "folio-vpc-ig",
-    },
+    tags=standard_tags("folio-vpc-ig")
 )
 
 eks_route_table = ec2.RouteTable(
-    "vpc-route-table",
+    "folio-vpc-route-table",
     vpc_id=vpc.id,
     routes=[
         ec2.RouteTableRouteArgs(
@@ -30,9 +28,7 @@ eks_route_table = ec2.RouteTable(
             gateway_id=igw.id,
         )
     ],
-    tags={
-        "Name": "folio-vpc-rt",
-    },
+    tags=standard_tags("folio-vpc-route-table")
 )
 
 ## Subnets, one for each AZ in a region
@@ -42,18 +38,16 @@ subnet_ids = []
 
 for zone in zones.names:
     vpc_subnet = ec2.Subnet(
-        f"vpc-subnet-{zone}",
+        f"folio-vpc-subnet-{zone}",
         assign_ipv6_address_on_creation=False,
         vpc_id=vpc.id,
         map_public_ip_on_launch=True,
         cidr_block=f"10.100.{len(subnet_ids)}.0/24",
         availability_zone=zone,
-        tags={
-            "Name": f"folio-sn-{zone}",
-        },
+        tags=standard_tags(f"folio-sn-{zone}")
     )
     ec2.RouteTableAssociation(
-        f"vpc-route-table-assoc-{zone}",
+        f"folio-vpc-route-table-assoc-{zone}",
         route_table_id=eks_route_table.id,
         subnet_id=vpc_subnet.id,
     )
@@ -65,9 +59,7 @@ eks_security_group = ec2.SecurityGroup(
     "folio-eks-cluster-sg",
     vpc_id=vpc.id,
     description="Allow all HTTP(s) traffic to EKS Cluster",
-    tags={
-        "Name": "folio-cluster-sg",
-    },
+    tags=standard_tags("folio-eks-cluster-sg"),
     ingress=[
         ec2.SecurityGroupIngressArgs(
             cidr_blocks=["0.0.0.0/0"],

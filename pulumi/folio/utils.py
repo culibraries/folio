@@ -1,7 +1,6 @@
 import json
 import pulumi
 
-
 def generate_kube_config(eks_cluster):
 
     kubeconfig = pulumi.Output.all(

@@ -7,26 +7,14 @@ import pulumi
 import pulumi_random
 import pulumi_kubernetes as k8s
 from pulumi_aws import eks, s3
+from tags import standard_tags
 
 ## EKS Cluster
-
-#####
-# I am using `pulumi.ResourceOptions(parent)` a lot to control flow order and make sure that a
-# resource waits until the underlying dependencies are ready.
-#####
 
 eks_cluster = eks.Cluster(
     "folio-eks-cluster",
     role_arn=iam.eks_role.arn,
-    tags={
-        "Name": "folio-eks-cluster",
-        "Service": "FOLIO",
-        "Environment": "dev",
-        "Owner": "CTA",
-        "Product": "FOLIO",
-        "Accounting": "cubl-folio",
-        "DataClassification/Compliance": "standard",
-    },
+    tags=standard_tags("folio-eks-cluster"),
     vpc_config=eks.ClusterVpcConfigArgs(
         # See also [Cluster VPC considerations](https://docs.aws.amazon.com/eks/latest/userguide/network_reqs.html)
         public_access_cidrs=["0.0.0.0/0"],
@@ -44,16 +32,8 @@ eks_node_group = eks.NodeGroup(
     node_group_name="folio-eks-nodegroup",
     node_role_arn=iam.ec2_role.arn,
     subnet_ids=vpc.subnet_ids,
-    tags={
-        "Name": "folio-eks-nodes",
-        "Service": "FOLIO",
-        "Environment": "dev",
-        "Owner": "CTA",
-        "Product": "FOLIO",
-        "Accounting": "cubl-folio",
-        "DataClassification/Compliance": "standard",
-    },
-    instance_types=["t3.large"],
+    tags=standard_tags("folio-eks-nodegroup"),
+    instance_types=["t3.xlarge"],
     scaling_config=eks.NodeGroupScalingConfigArgs(
         desired_size=3,
         max_size=4,
