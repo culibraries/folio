@@ -4,25 +4,28 @@ from tags import standard_tags
 
 ## VPC
 
+name = "folio-eks-vpc"
 vpc = ec2.Vpc(
-    "folio-eks-vpc",
+    name,
     cidr_block="10.100.0.0/16",
     instance_tenancy="default",
     enable_dns_hostnames=True,
     enable_dns_support=True,
-    tags=standard_tags("folio-eks-vpc")
+    tags=standard_tags(name)
 )
 
+name = "folio-public-vpc-ig"
 igw = ec2.InternetGateway(
-    "folio-public-vpc-ig",
+    name,
     vpc_id=vpc.id,
-    tags=standard_tags("folio-vpc-ig")
+    tags=standard_tags(name)
 )
 
 # If a subnet's traffic is routed to a internet gateway it is public.
 
+name = "folio-public-vpc-route-table"
 eks_route_table = ec2.RouteTable(
-    "folio-public-vpc-route-table",
+    name,
     vpc_id=vpc.id,
     routes=[
         ec2.RouteTableRouteArgs(
@@ -30,7 +33,7 @@ eks_route_table = ec2.RouteTable(
             gateway_id=igw.id,
         )
     ],
-    tags=standard_tags("folio-vpc-route-table")
+    tags=standard_tags(name)
 )
 
 ## Subnets, one public and one private for each AZ in a region.
@@ -67,7 +70,7 @@ for zone in zones.names:
         f"folio-private-vpc-subnet-{zone}",
         assign_ipv6_address_on_creation=False,
         vpc_id=vpc.id,
-        map_public_ip_on_launch=True, # TODO What is this?
+        map_public_ip_on_launch=False,
         cidr_block=f"10.100.{len(subnet_ids)}.0/24",
         availability_zone=zone,
         tags=standard_tags(f"folio-private-sn-{zone}")
@@ -76,11 +79,12 @@ for zone in zones.names:
 
 ## Security Group
 
+name = "folio-eks-cluster-sg"
 eks_security_group = ec2.SecurityGroup(
-    "folio-eks-cluster-sg",
+    name,
     vpc_id=vpc.id,
     description="Allow all HTTP(s) traffic to EKS Cluster",
-    tags=standard_tags("folio-eks-cluster-sg"),
+    tags=standard_tags(name),
     ingress=[
         ec2.SecurityGroupIngressArgs(
             cidr_blocks=["0.0.0.0/0"],

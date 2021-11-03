@@ -5,8 +5,9 @@ import json
 
 ## EKS Cluster Role
 
+name = "folio-eks-iam-role"
 eks_role = iam.Role(
-    "folio-eks-iam-role",
+    name,
     assume_role_policy=json.dumps(
         {
             "Version": "2012-10-17",
@@ -20,7 +21,7 @@ eks_role = iam.Role(
             ],
         }
     ),
-    tags=standard_tags("folio-eks-iam-role"),
+    tags=standard_tags(name),
 )
 
 iam.RolePolicyAttachment(
@@ -38,6 +39,7 @@ iam.RolePolicyAttachment(
 
 ## Ec2 NodeGroup Role
 # Allow members of the group to temporarily assume another role via the Secure Token Service (STS).
+name = "folio-ec2-nodegroup-iam-role"
 ec2_role = iam.Role(
     "folio-ec2-nodegroup-iam-role",
     assume_role_policy=json.dumps(
@@ -53,7 +55,7 @@ ec2_role = iam.Role(
             ],
         }
     ),
-    tags=standard_tags("folio-ec2-nodegroup-iam-role")
+    tags=standard_tags(name)
 )
 
 iam.RolePolicyAttachment(

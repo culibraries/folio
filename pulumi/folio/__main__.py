@@ -6,15 +6,17 @@ import utils
 import pulumi
 import pulumi_random
 import pulumi_kubernetes as k8s
+import pulumi_aws as aws
 from pulumi_aws import eks, s3
 from tags import standard_tags
 
 ## EKS Cluster
 
+name = "folio-eks-cluster"
 eks_cluster = eks.Cluster(
-    "folio-eks-cluster",
+    name,
     role_arn=iam.eks_role.arn,
-    tags=standard_tags("folio-eks-cluster"),
+    tags=standard_tags(name),
     vpc_config=eks.ClusterVpcConfigArgs(
         # See also [Cluster VPC considerations](https://docs.aws.amazon.com/eks/latest/userguide/network_reqs.html)
         public_access_cidrs=["0.0.0.0/0"],
@@ -26,13 +28,14 @@ eks_cluster = eks.Cluster(
     version="1.21",
 )
 
+name = "folio-eks-nodegroup"
 eks_node_group = eks.NodeGroup(
-    "folio-eks-nodegroup",
+    name,
     cluster_name=eks_cluster.name,
-    node_group_name="folio-eks-nodegroup",
+    node_group_name=name,
     node_role_arn=iam.ec2_role.arn,
     subnet_ids=vpc.subnet_ids,
-    tags=standard_tags("folio-eks-nodegroup"),
+    tags=standard_tags(name),
     instance_types=["t3.xlarge"],
     scaling_config=eks.NodeGroupScalingConfigArgs(
         desired_size=3,
@@ -40,6 +43,34 @@ eks_node_group = eks.NodeGroup(
         min_size=1,
     ),
 )
+
+## Add ons for the cluster
+
+# https://docs.aws.amazon.com/eks/latest/userguide/managing-vpc-cni.html
+name = "folio-vpc-cni-add-on"
+aws.eks.Addon(name,
+    cluster_name=eks_cluster.name,
+    addon_name="vpc-cni",
+    tags=standard_tags(name)
+    )
+
+# https://docs.aws.amazon.com/eks/latest/userguide/managing-coredns.html
+name = "folio-coredns-add-on"
+aws.eks.Addon(name,
+    cluster_name=eks_cluster.name,
+    addon_name="coredns",
+    tags=standard_tags(name)
+    )
+
+# https://docs.aws.amazon.com/eks/latest/userguide/managing-kube-proxy.html
+name = "folio-kube-proxy-add-on"
+aws.eks.Addon(name,
+    cluster_name=eks_cluster.name,
+    addon_name="kube-proxy",
+    tags=standard_tags(name)
+    )
+
+## Export kubeconfig and cluster name
 
 pulumi.export("cluster-name", eks_cluster.name)
 pulumi.export("kubeconfig", utils.generate_kube_config(eks_cluster))
