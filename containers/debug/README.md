@@ -24,6 +24,18 @@ For instructions for how to auth to the container registry see:
 * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 * https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry
 
+# How to use this container
+
+Once this container is deployed in the cluster, you can connect to it like this:
+
+```
+kubectl exec --stdin --tty folio_debug -- /bin/bash
+```
+
+For more info see: https://kubernetes.io/docs/tasks/debug-application-cluster/get-shell-running-container/
+
+# Resources on debugging k8s
+
 Lots of resources on debugging kubernetes clusters is here:
 https://kubernetes.io/docs/tasks/debug-application-cluster/
 
