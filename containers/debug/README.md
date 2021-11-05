@@ -28,8 +28,13 @@ For instructions for how to auth to the container registry see:
 
 Once this container is deployed in the cluster, you can connect to it like this:
 
-```
-kubectl exec --stdin --tty folio_debug -- /bin/bash
+```shell
+# Deploy the container
+$ kubectl apply -f containers/debug/folio-debug.yaml
+pod/folio-debug created
+# Connect to the container and get a shell
+$ kubectl exec --stdin --tty folio-debug -- /bin/sh
+/ #
 ```
 
 For more info see: https://kubernetes.io/docs/tasks/debug-application-cluster/get-shell-running-container/
