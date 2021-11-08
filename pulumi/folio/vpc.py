@@ -70,7 +70,7 @@ for zone in zones.names:
         f"folio-private-vpc-subnet-{zone}",
         assign_ipv6_address_on_creation=False,
         vpc_id=vpc.id,
-        map_public_ip_on_launch=False,
+        map_public_ip_on_launch=True,
         cidr_block=f"10.100.{len(subnet_ids)}.0/24",
         availability_zone=zone,
         tags=standard_tags(f"folio-private-sn-{zone}")
