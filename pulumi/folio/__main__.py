@@ -24,6 +24,7 @@ eks_cluster = eks.Cluster(
         security_group_ids=[vpc.eks_security_group.id],
         # Creates a subnet and ec2 routeTableAssociate in each AZ in the region
         subnet_ids=vpc.subnet_ids,
+        
     ),
     version="1.21",
 )
@@ -39,8 +40,8 @@ eks_node_group = eks.NodeGroup(
     cluster_name=eks_cluster.name,
     node_group_name=name,
     node_role_arn=iam.ec2_role.arn,
-    subnet_ids=vpc.subnet_ids,
-    #subnet_ids=vpc.private_subnet_ids,
+    #subnet_ids=vpc.subnet_ids,
+    subnet_ids=vpc.private_subnet_ids,
     tags=tags,
     instance_types=["t3.xlarge"],
     scaling_config=eks.NodeGroupScalingConfigArgs(
