@@ -43,6 +43,7 @@ eks_route_table = ec2.RouteTable(
 
 zones = get_availability_zones()
 subnet_ids = []
+private_subnet_ids = []
 
 # Create the public subnets. Public subnets are public because they
 # are associated with an InternetGateway.
@@ -76,6 +77,7 @@ for zone in zones.names:
         tags=standard_tags(f"folio-private-sn-{zone}")
     )
     subnet_ids.append(vpc_subnet.id)
+    private_subnet_ids.append(vpc_subnet.id)
 
 ## Security Group
 

@@ -12,11 +12,11 @@ from tags import standard_tags
 
 ## EKS Cluster
 
-name = "folio-eks-cluster"
+cluster_name = "folio-eks-cluster"
 eks_cluster = eks.Cluster(
-    name,
+    cluster_name,
     role_arn=iam.eks_role.arn,
-    tags=standard_tags(name),
+    tags=standard_tags(cluster_name),
     vpc_config=eks.ClusterVpcConfigArgs(
         # See also [Cluster VPC considerations](https://docs.aws.amazon.com/eks/latest/userguide/network_reqs.html)
         public_access_cidrs=["0.0.0.0/0"],
@@ -28,14 +28,20 @@ eks_cluster = eks.Cluster(
     version="1.21",
 )
 
+# TODO Should I only pass in the subnet ids of the _private_ subnet here?
+# TODO Should I export these ips/ids?
 name = "folio-eks-nodegroup"
+tags = standard_tags(name)
+cluster_name_tag_key = "kubernetes.io/cluster/" + cluster_name
+tags[cluster_name_tag_key] = "owned"
 eks_node_group = eks.NodeGroup(
     name,
     cluster_name=eks_cluster.name,
     node_group_name=name,
     node_role_arn=iam.ec2_role.arn,
     subnet_ids=vpc.subnet_ids,
-    tags=standard_tags(name),
+    #subnet_ids=vpc.private_subnet_ids,
+    tags=tags,
     instance_types=["t3.xlarge"],
     scaling_config=eks.NodeGroupScalingConfigArgs(
         desired_size=3,
