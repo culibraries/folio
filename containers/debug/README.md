@@ -44,14 +44,23 @@ $ kubectl exec --stdin --tty folio-debug -- /bin/sh
 
 For more info see: https://kubernetes.io/docs/tasks/debug-application-cluster/get-shell-running-container/
 
+## Using psql
+
 ### Connecting to the PostgreSQL database
 
 [psql](https://www.postgresql.org/docs/9.2/app-psql.html) is on the container as well as the database connection information as environmental variables. 
 
-```
-# Connect to the RDS cluster
-$ PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -d $DB_DATABASE -U $DB_USERNAME
-```
+* Connect to the RDS cluster
+
+    ```shell
+    PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -d $DB_DATABASE -U $DB_USERNAME
+    ```
+
+* Get a list of all tables in the database
+
+    ```sql
+    SELECT * FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';
+    ```
 
 ## Resources on debugging k8s
 
