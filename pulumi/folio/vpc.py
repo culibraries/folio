@@ -1,11 +1,12 @@
 import pulumi
 from pulumi_aws import ec2, get_availability_zones
+import pulumi_eks as eks
 from tags import standard_tags
 
 ## VPC
 
 name = "folio-eks-vpc"
-vpc = ec2.Vpc(
+vpc_classic = ec2.Vpc(
     name,
     cidr_block="10.100.0.0/16",
     instance_tenancy="default",
@@ -17,7 +18,7 @@ vpc = ec2.Vpc(
 name = "folio-public-vpc-ig"
 igw = ec2.InternetGateway(
     name,
-    vpc_id=vpc.id,
+    vpc_id=vpc_classic.id,
     tags=standard_tags(name)
 )
 
@@ -26,7 +27,7 @@ igw = ec2.InternetGateway(
 name = "folio-public-vpc-route-table"
 eks_route_table = ec2.RouteTable(
     name,
-    vpc_id=vpc.id,
+    vpc_id=vpc_classic.id,
     routes=[
         ec2.RouteTableRouteArgs(
             cidr_block="0.0.0.0/0",
@@ -44,6 +45,7 @@ eks_route_table = ec2.RouteTable(
 zones = get_availability_zones()
 subnet_ids = []
 private_subnet_ids = []
+public_subnet_ids = []
 
 # Create the public subnets. Public subnets are public because they
 # are associated with an InternetGateway.
@@ -51,7 +53,7 @@ for zone in zones.names:
     vpc_subnet = ec2.Subnet(
         f"folio-public-vpc-subnet-{zone}",
         assign_ipv6_address_on_creation=False,
-        vpc_id=vpc.id,
+        vpc_id=vpc_classic.id,
         map_public_ip_on_launch=True,
         cidr_block=f"10.100.{len(subnet_ids)}.0/24",
         availability_zone=zone,
@@ -63,6 +65,7 @@ for zone in zones.names:
         subnet_id=vpc_subnet.id,
     )
     subnet_ids.append(vpc_subnet.id)
+    public_subnet_ids.append(vpc_subnet.id)
 
 # Create the private subnets. Private subnets are private because
 # they are NOT associated with an InternetGateway or other gateway.
@@ -70,7 +73,7 @@ for zone in zones.names:
     vpc_subnet = ec2.Subnet(
         f"folio-private-vpc-subnet-{zone}",
         assign_ipv6_address_on_creation=False,
-        vpc_id=vpc.id,
+        vpc_id=vpc_classic.id,
         map_public_ip_on_launch=True,
         cidr_block=f"10.100.{len(subnet_ids)}.0/24",
         availability_zone=zone,
@@ -84,7 +87,7 @@ for zone in zones.names:
 name = "folio-eks-cluster-sg"
 eks_security_group = ec2.SecurityGroup(
     name,
-    vpc_id=vpc.id,
+    vpc_id=vpc_classic.id,
     description="Allow all HTTP(s) traffic to EKS Cluster",
     tags=standard_tags(name),
     ingress=[
