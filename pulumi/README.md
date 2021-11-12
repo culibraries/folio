@@ -14,6 +14,10 @@ Set some environment variables so that the AWS cli can authenticate you.
 export AWS_ACCESS_KEY_ID=<YOUR_ACCESS_KEY_ID> && export AWS_SECRET_ACCESS_KEY=<YOUR_SECRET_ACCESS_KEY>
 ```
 
+# Running the code
+
+Clone this repo then run `npm install`. Let's stick to npm for this project and not use yarn.
+
 # Stacks
 Stacks are a set of resources to run a cloud application. For example there is a stack called `dev`. Other stacks might include `staging` and `production`.
 
