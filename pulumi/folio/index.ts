@@ -21,7 +21,7 @@ const vpc = new awsx.ec2.Vpc(vpcName, {
     numberOfAvailabilityZones: 2,
 
     // We could have these be equal to the number of availability zones for greater
-    // fault tollerance. Although the cost will be higher.
+    // fault tolerance. Although the cost will be higher.
     numberOfNatGateways: 1,
 
     // See https://github.com/pulumi/pulumi-eks/blob/master/examples/subnet-tags/index.ts
