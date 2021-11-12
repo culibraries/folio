@@ -3,102 +3,175 @@ import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
 import * as eks from "@pulumi/eks";
 
-// Define a function for tags.
-function tags(name: string): pulumi.Input<aws.Tags> {
-    return {
-        "Name": name,
-        "Owner": "CTA",
-        "Environment": pulumi.getStack(),
-        "Product": "FOLIO",
-        "Accounting": "cubl-folio",
-        "DataClassificationCompliance": "standard"
-    }
-}
+// Set some default tags which we will add to when defining resources.
+const tags = {
+    "Owner": "CTA",
+    "Environment": pulumi.getStack(),
+    "Product": "FOLIO",
+    "Accounting": "cubl-folio",
+    "DataClassificationCompliance": "standard"
+};
 
-// Allocate a new VPC with the default settings:
+// Allocate a new VPC with the default settings.
 const vpcName = "folio-vpc";
 const vpc = new awsx.ec2.Vpc(vpcName, {
+    tags: { "Name": vpcName, ...tags },
+
+    // If we have too many AZs and NAT gateways we'll run out of EIPs with our current quota. 
     numberOfAvailabilityZones: 2,
-    // This is the default behavior but we make it explicit here.
-    // The name helps identify the resource.
 
-    // TODO I don't think this is the right way to add tags to Subnets.
+    // We could have these be equal to the number of availability zones for greater
+    // fault tollerance. Although the cost will be higher.
+    numberOfNatGateways: 1,
+
     // See https://github.com/pulumi/pulumi-eks/blob/master/examples/subnet-tags/index.ts
-    // subnets: [{ type: "public", tags: tags("folio-public-subnet") },
-    //           { type: "private", tags: tags("folio-private-subnet") }],
-    subnets: [{ type: "public", name: "folio-subnet" },
-              { type: "private", name: "folio-subnet" }],
+    // for what's going on  with the tags here.
+    subnets: [{
+        type: "public", name: "folio-subnet",
+        tags: { "kubernetes.io/role/elb": "1", ...tags }
+    },
+    {
+        type: "private", name: "folio-subnet",
+        tags: { "kubernetes.io/role/internal-elb": "1", ...tags }
+    }]
+},
+    {
+        // Inform pulumi to ignore tag changes to the VPCs or subnets, so that
+        // tags auto-added by AWS EKS do not get removed during future
+        // refreshes and updates, as they are added outside of pulumi's management
+        // and would be removed otherwise.
+        // Also see: https://github.com/pulumi/pulumi-eks/blob/master/examples/subnet-tags/index.ts
+        // for links to issues with the background on this.
+        transformations: [(args: any) => {
+            if (args.type === "aws:ec2/vpc:Vpc" || args.type === "aws:ec2/subnet:Subnet") {
+                return {
+                    props: args.props,
+                    opts: pulumi.mergeOptions(args.opts, { ignoreChanges: ["tags"] }),
+                };
+            }
+            return undefined;
+        }],
+    }
+);
 
-    tags: tags(vpcName)
-});
-
-// NOTE We're going to want to configure our own SG so that we can set up
-// special ingresses.
+// Create the security group. We need a custom security group since we're going
+// to expose non-standard ports for things like edge modules.
 const sgName = "folio-sg";
 const sg = new aws.ec2.SecurityGroup(sgName, {
-        description: "TODO",
-        vpcId: vpc.id,
-        // TODO new these instead of inlining for readability.
-        ingress: [{
-            description: "Custom - allow inbound traffic on 443",
-            fromPort: 443,
-            toPort: 443,
-            protocol: "tcp",
-            cidrBlocks: ["0.0.0.0/0"]
-        }, {
-        description: "Custom - allow inbound traffic on 9000",
+    tags: { "Name": sgName, ...tags },
+    description: "Security group for FOLIO EKS cluster.",
+    vpcId: vpc.id,
+    ingress: [{
+        description: "Allow inbound traffic on 443",
+        fromPort: 443,
+        toPort: 443,
+        protocol: "tcp",
+        cidrBlocks: ["0.0.0.0/0"]
+    }, {
+        description: "Allow inbound traffic on 9000 for edgeconexion",
         fromPort: 9000,
         toPort: 9000,
         protocol: "tcp",
         cidrBlocks: ["0.0.0.0/0"]
-        }],
-        egress: [{
-            description: "Custom - allow outbound traffic",
-            fromPort: 0,
-            toPort: 0,
-            protocol: "-1",
-            cidrBlocks: ["0.0.0.0/0"]
-        }],
-        tags: tags(sgName),
+    }],
+    egress: [{
+        description: "Allow outbound traffic",
+        fromPort: 0,
+        toPort: 0,
+        protocol: "-1",
+        cidrBlocks: ["0.0.0.0/0"]
+    }]
+});
+
+// Create our own IAM role and profile which we can bind nto the cluster's
+// NodeGroup. Cluster will also create a default for us, but we show here how
+// to create and bind our own.
+const managedPolicyArns: string[] = [
+    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+];
+
+// Creates a role and attaches the EKS worker node IAM managed policies.
+export function createRole(name: string): aws.iam.Role {
+    const role = new aws.iam.Role(name, {
+        tags: { "Name": name, ...tags },
+
+        assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({
+            Service: "ec2.amazonaws.com",
+        }),
     });
 
-// Export a few resulting fields to make them easy to use.
-export const vpcId = vpc.id;
-export const vpcPrivateSubnetIds = vpc.privateSubnetIds;
-export const vpcPublicSubnetIds = vpc.publicSubnetIds;
+    let counter = 0;
+    for (const policy of managedPolicyArns) {
+        // Create RolePolicyAttachment without returning it.
+        const rpa = new aws.iam.RolePolicyAttachment(`${name}-policy-${counter++}`,
+            { policyArn: policy, role: role },
+        );
+    }
 
-// Create an EKS cluster with the default configuration.
+    return role;
+}
+
+// We could create multiple roles and instance profiles here if we wanted to
+// perhaps to apply different profiles to different node groups.
+const role = createRole("folio-worker-role");
+const instanceProfile = new aws.iam.InstanceProfile("folio-instance-profile", { role: role });
+
+// Create an EKS cluster.
 const clusterName = "folio-cluster";
 const cluster = new eks.Cluster(clusterName, {
+    // Applies tags to all resources under management of the cluster.
+    tags: { "Name": clusterName, ...tags },
+
+    // Apply tags to this cluster.
+    clusterTags: { "Name": clusterName, ...tags },
+
     // Tell the cluster about its VPC.
     vpcId: vpc.id,
     publicSubnetIds: vpc.publicSubnetIds,
     privateSubnetIds: vpc.privateSubnetIds,
     nodeAssociatePublicIpAddress: false,
 
-    // Setup the nodes for the cluster.
-    instanceType: aws.ec2.InstanceType.T3_XLarge,
-    desiredCapacity: 4,
-    minSize: 2,
-    maxSize: 5,
+    // Need this because we're going to create our own NodeGroup below.
+    skipDefaultNodeGroup: true,
 
-    // Set up logging.
+    // Bind the SecurityGroup to the cluster. If we don't do this it will create
+    // its own default one.
+    clusterSecurityGroup: sg,
+
+    // Bind any roles we have created to the cluster.
+    instanceRoles: [role],
+
+    // Enable control plane logging. This sends logs to CloudWatch.
     enabledClusterLogTypes: [
         "api",
         "audit",
         "authenticator",
     ],
-
-    // Add some tags.
-    tags: tags(clusterName),
-
-    // Bind the SecurityGroup to the cluster.
-    clusterSecurityGroup: sg
-
-    // TODO Create an IAM role or do we want to take the defaults?
-    // TODO Set the k8s version
-    
 });
+
+// Create the node group with a bit more control than we would be given with the
+// defaults. Using this approach we could create multiple node groups if we wanted to
+// each with its own properties and InstanceProfile.
+const nodeGroupName = "folio-node-group";
+cluster.createNodeGroup(nodeGroupName, {
+    instanceType: aws.ec2.InstanceType.T3_XLarge,
+    desiredCapacity: 4,
+    minSize: 3,
+    maxSize: 5,
+
+    // TODO What is this doing?
+    labels: { "ondemand": "true" },
+
+    // Bind the instance profile to the NodeGroup.
+    instanceProfile: instanceProfile,
+});
+
+// Export a few resulting fields to make them easy to use.
+export const vpcId = vpc.id;
+export const vpcPrivateSubnetIds = vpc.privateSubnetIds;
+export const vpcPublicSubnetIds = vpc.publicSubnetIds;
 
 // Export the cluster's kubeconfig.
 export const kubeconfig = cluster.kubeconfig;
