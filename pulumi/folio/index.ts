@@ -12,7 +12,7 @@ const tags = {
     "DataClassificationCompliance": "standard"
 };
 
-// Allocate a new VPC with the default settings.
+// Allocate a new VPC with the default settings using pulumi Crosswalk.
 const vpcName = "folio-vpc";
 const vpc = new awsx.ec2.Vpc(vpcName, {
     tags: { "Name": vpcName, ...tags },
@@ -25,7 +25,7 @@ const vpc = new awsx.ec2.Vpc(vpcName, {
     numberOfNatGateways: 1,
 
     // See https://github.com/pulumi/pulumi-eks/blob/master/examples/subnet-tags/index.ts
-    // for what's going on  with the tags here.
+    // for what's going on with the tags here.
     subnets: [{
         type: "public", name: "folio-subnet",
         tags: { "kubernetes.io/role/elb": "1", ...tags }
@@ -55,7 +55,10 @@ const vpc = new awsx.ec2.Vpc(vpcName, {
 );
 
 // Create the security group. We need a custom security group since we're going
-// to expose non-standard ports for things like edge modules.
+// to expose non-standard ports for things like edge modules. This is using the pulumi
+// Classic API. Although Crosswalk (awsx) has its own SecurityGroup type, Cluster
+// wants a Classic SecurityGroup type. See Cluster.clusterSecurityGroup below
+// where we pass this into the cluster.
 const sgName = "folio-sg";
 const sg = new aws.ec2.SecurityGroup(sgName, {
     tags: { "Name": sgName, ...tags },
@@ -166,6 +169,29 @@ cluster.createNodeGroup(nodeGroupName, {
 
     // Bind the instance profile to the NodeGroup.
     instanceProfile: instanceProfile,
+});
+
+// Configure the networking addons that we want.
+// See https://www.pulumi.com/registry/packages/aws/api-docs/eks/addon/
+const vpcCniName = "folio-vpc-cni-addon"
+new aws.eks.Addon(vpcCniName, {
+    tags: { "Name": vpcCniName, ...tags },
+    clusterName: cluster.eksCluster.name,
+    addonName: "vpc-cni",
+});
+
+const kubeProxyName = "folio-kube-proxy-addon"
+new aws.eks.Addon(kubeProxyName, {
+    tags: {"Name": kubeProxyName, ...tags},
+    clusterName: cluster.eksCluster.name,
+    addonName: "kube-proxy",
+});
+
+const corednsName = "folio-coredns-addon"
+new aws.eks.Addon(corednsName, {
+    tags: { "Name": corednsName, ...tags},
+    clusterName: cluster.eksCluster.name,
+    addonName: "coredns",
 });
 
 // Export a few resulting fields to make them easy to use.
