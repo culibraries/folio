@@ -24,7 +24,7 @@ const vpc = new awsx.ec2.Vpc(vpcName, {
     // fault tolerance. Although the cost will be higher.
     numberOfNatGateways: 1,
 
-    // See See https://github.com/pulumi/pulumi-eks/blob/e03751425604b5193c00cd2f8858d9b16f7901f0/examples/subnet-tags/index.ts
+    // See https://github.com/pulumi/pulumi-eks/blob/e03751425604b5193c00cd2f8858d9b16f7901f0/examples/subnet-tags/index.ts
     // for what's going on with the tags here.
     subnets: [{
         type: "public", name: "folio-subnet",
