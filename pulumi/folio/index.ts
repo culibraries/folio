@@ -24,7 +24,7 @@ const vpc = new awsx.ec2.Vpc(vpcName, {
     // fault tolerance. Although the cost will be higher.
     numberOfNatGateways: 1,
 
-    // See https://github.com/pulumi/pulumi-eks/blob/master/examples/subnet-tags/index.ts
+    // See See https://github.com/pulumi/pulumi-eks/blob/e03751425604b5193c00cd2f8858d9b16f7901f0/examples/subnet-tags/index.ts
     // for what's going on with the tags here.
     subnets: [{
         type: "public", name: "folio-subnet",
@@ -86,7 +86,7 @@ const sg = new aws.ec2.SecurityGroup(sgName, {
     }]
 });
 
-// Create our own IAM role and profile which we can bind nto the cluster's
+// Create our own IAM role and profile which we can bind into the cluster's
 // NodeGroup. Cluster will also create a default for us, but we show here how
 // to create and bind our own.
 const managedPolicyArns: string[] = [
@@ -152,6 +152,9 @@ const cluster = new eks.Cluster(clusterName, {
         "audit",
         "authenticator",
     ],
+
+    // Set the desired kubernetes version.
+    version: "1.21"
 });
 
 // Create the node group with a bit more control than we would be given with the
@@ -164,7 +167,7 @@ cluster.createNodeGroup(nodeGroupName, {
     minSize: 3,
     maxSize: 5,
 
-    // TODO What is this doing?
+    // On-demand are the more expensive, non-spot instances.
     labels: { "ondemand": "true" },
 
     // Bind the instance profile to the NodeGroup.

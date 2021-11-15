@@ -1,24 +1,33 @@
 This is a typescript [pulumi](https://www.pulumi.com/docs) project. Pulumi is both a command line interface and a set of APIs for building cloud resources with code. This project was created using the `pulumi new AWS-typescript` command. This project is mostly about using pulumi to build things in kubernetes backed by AWS.
 
-# Getting started
+# Setting up your environment
 You need both pulumi and the AWS cli installed locally to develop this. If you're on a mac do:
-
 ```
 brew install pulumi
 brew install awscli
 ```
 
-# Configuring the AWS cli
+## Configuring the AWS cli
 Set some environment variables so that the AWS cli can authenticate you.
 ```
 export AWS_ACCESS_KEY_ID=<YOUR_ACCESS_KEY_ID> && export AWS_SECRET_ACCESS_KEY=<YOUR_SECRET_ACCESS_KEY>
 ```
 
-# Running the code
+## Other Requirements
+* node 17.0.1
+* npm 8.1.0 (should be installed with 17.0.1)
+* pulumi - latest
+* awscli - latest
 
-Clone this repo then run `npm install`. Let's stick to npm for this project and not use yarn.
+Both pulumi and the aws cli will prompt you when a new version is available and give you instructions for how to upgrade. Please do this.
 
-# Stacks
+## Installing requirements
+To install a different version of node use the node version manager (nvm). Follow [these install instructions](https://github.com/nvm-sh/nvm#installing-and-updating) rather than using brew if you are on a mac. Make sure to restart your terminal then do `nvm --help` to see some help. To install a specific version on node do `nvm install <your version>` then do `nvm use <yourversion>`.
+
+## Install the code
+Clone this repo then run `npm install` in the `pulumi/folio` directory. Let's stick to npm for this project and not use yarn.
+
+## Stacks
 Stacks are a set of resources to run a cloud application. For example there is a stack called `dev`. Other stacks might include `staging` and `production`.
 
 ## Stack state
@@ -28,13 +37,21 @@ Stacks have state. Our stack states are stored in our s3 bucket. There is no nee
 The state for the `dev` stack can be logged into like this: `pulumi login s3://cubl-pulumi/folio/dev`. Once logged in you can change the code for the stack and redeploy it.
 
 ## Stacks and projects in our s3 bucket
-For more information about using s3 as a backend for pulumi see [this doc](https://www.pulumi.com/docs/intro/concepts/state/#logging-into-the-AWS-s3-backend). Each stack is stored in s3 in a separate directory for its project like this:
+For more information about using s3 as a backend see [the pulumi docuumentation on storing state](https://www.pulumi.com/docs/intro/concepts/state/#logging-into-the-AWS-s3-backend). Each stack is stored in s3 in a separate directory for its project like this:
 ```
 cubl-pulumi/folio/dev/.pulumi
 ```
 **When creating a new stack, check the s3 bucket to make sure it is ending up in a project directory like other stacks.**
 
-# Deployment
+## Setting the PULUMI_CONFIG_PASSPHRASE
+Export this environment variable on your local system for the stack that you are working on. Each stack has its own passphrase. This passphrase is located in keypass. To export it do:
+```
+export PULUMI_CONFIG_PASSPHRASE=<PULUMI_CONFIG_PASSPHRASE>
+```
+
+You are now ready to deploy the stack.
+
+# Stack deployment
 To deploy the stack and test things out after you have configured your local workstation run `pulumi up`. Use the same command to update the stack after any changes. Pulumi will take care of previewing what has changed and only apply the differences to whatever has already been deployed.
 
 # Connecting to the cluster
