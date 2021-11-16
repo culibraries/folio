@@ -204,7 +204,9 @@ new aws.eks.Addon(corednsName, {
     addonName: "coredns",
 });
 
-// Deploy nginx.
+// This is just an example of a deployment that we can do. As we move forward
+// we would have one service and deployment for okapi, one for the stripes container,
+// and one for any additional containers that require special ports, like edgeconnexion.
 const appName = "folio";
 const appLabels = { appClass: appName };
 new k8s.apps.v1.Deployment(`${appName}-nginx-dep`, {
@@ -225,9 +227,11 @@ new k8s.apps.v1.Deployment(`${appName}-nginx-dep`, {
     },
 }, { provider: cluster.provider });
 
-const service = new k8s.core.v1.Service(`${appName}-alb-svc`, {
+// This deploys what is an ELB or "classic" load balancer.
+const service = new k8s.core.v1.Service(`${appName}-elb-svc`, {
     metadata: { labels: appLabels },
     spec: {
+        // This creates an AWS ELB for us.
         type: "LoadBalancer",
         ports: [{ port: 80, targetPort: "http" }],
         selector: appLabels,
