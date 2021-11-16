@@ -2,6 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
 import * as eks from "@pulumi/eks";
+import * as kafka from "./kafka";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -185,14 +186,14 @@ new aws.eks.Addon(vpcCniName, {
 
 const kubeProxyName = "folio-kube-proxy-addon"
 new aws.eks.Addon(kubeProxyName, {
-    tags: {"Name": kubeProxyName, ...tags},
+    tags: { "Name": kubeProxyName, ...tags },
     clusterName: cluster.eksCluster.name,
     addonName: "kube-proxy",
 });
 
 const corednsName = "folio-coredns-addon"
 new aws.eks.Addon(corednsName, {
-    tags: { "Name": corednsName, ...tags},
+    tags: { "Name": corednsName, ...tags },
     clusterName: cluster.eksCluster.name,
     addonName: "coredns",
 });
@@ -204,3 +205,7 @@ export const vpcPublicSubnetIds = vpc.publicSubnetIds;
 
 // Export the cluster's kubeconfig.
 export const kubeconfig = cluster.kubeconfig;
+
+// Deploy Kafka via a Helm Chart
+const kafkaNamespaceName = "kafka";
+export const kafkaInstance = kafka.kafka.Helm(kubeconfig, kafkaNamespaceName);
