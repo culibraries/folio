@@ -2,6 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
 import * as eks from "@pulumi/eks";
+import * as k8s from "@pulumi/kubernetes";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -65,6 +66,12 @@ const sg = new aws.ec2.SecurityGroup(sgName, {
     description: "Security group for FOLIO EKS cluster.",
     vpcId: vpc.id,
     ingress: [{
+        description: "Allow inbound traffic on 443",
+        fromPort: 80,
+        toPort: 80,
+        protocol: "tcp",
+        cidrBlocks: ["0.0.0.0/0"]
+    }, {
         description: "Allow inbound traffic on 443",
         fromPort: 443,
         toPort: 443,
@@ -196,6 +203,39 @@ new aws.eks.Addon(corednsName, {
     clusterName: cluster.eksCluster.name,
     addonName: "coredns",
 });
+
+// Deploy nginx.
+const appName = "folio";
+const appLabels = { appClass: appName };
+new k8s.apps.v1.Deployment(`${appName}-nginx-dep`, {
+    metadata: { labels: appLabels },
+    spec: {
+        replicas: 2,
+        selector: { matchLabels: appLabels },
+        template: {
+            metadata: { labels: appLabels },
+            spec: {
+                containers: [{
+                    name: appName,
+                    image: "nginx",
+                    ports: [{ name: "http", containerPort: 80 }]
+                }],
+            }
+        }
+    },
+}, { provider: cluster.provider });
+
+const service = new k8s.core.v1.Service(`${appName}-alb-svc`, {
+    metadata: { labels: appLabels },
+    spec: {
+        type: "LoadBalancer",
+        ports: [{ port: 80, targetPort: "http" }],
+        selector: appLabels,
+    },
+}, { provider: cluster.provider });
+
+// Export the URL for the load balanced service.
+export const url = service.status.loadBalancer.ingress[0].hostname;
 
 // Export a few resulting fields to make them easy to use.
 export const vpcId = vpc.id;
