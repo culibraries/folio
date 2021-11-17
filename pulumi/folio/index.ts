@@ -66,7 +66,7 @@ const sg = new aws.ec2.SecurityGroup(sgName, {
     description: "Security group for FOLIO EKS cluster.",
     vpcId: vpc.id,
     ingress: [{
-        description: "Allow inbound traffic on 443",
+        description: "Allow inbound traffic on 80",
         fromPort: 80,
         toPort: 80,
         protocol: "tcp",
@@ -99,7 +99,7 @@ const sg = new aws.ec2.SecurityGroup(sgName, {
 const managedPolicyArns: string[] = [
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 ];
 
 // Creates a role and attaches the EKS worker node IAM managed policies.
@@ -207,9 +207,9 @@ new aws.eks.Addon(corednsName, {
 // This is just an example of a deployment that we can do. As we move forward
 // we would have one service and deployment for okapi, one for the stripes container,
 // and one for any additional containers that require special ports, like edgeconnexion.
-const appName = "folio";
+const appName = "test-nginx";
 const appLabels = { appClass: appName };
-new k8s.apps.v1.Deployment(`${appName}-nginx-dep`, {
+new k8s.apps.v1.Deployment(`${appName}-dep`, {
     metadata: { labels: appLabels },
     spec: {
         replicas: 2,
