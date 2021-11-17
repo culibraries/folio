@@ -2,6 +2,9 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
 import * as eks from "@pulumi/eks";
+import * as k8s from "@pulumi/kubernetes";
+
+const config = new pulumi.Config();
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -121,6 +124,39 @@ export function createRole(name: string): aws.iam.Role {
 const role = createRole("folio-worker-role");
 const instanceProfile = new aws.iam.InstanceProfile("folio-instance-profile", { role: role });
 
+// Create an RBAC role for full cluster access to admins.
+function createIAMRole(name: string): aws.iam.Role {
+    // See https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html
+    // for an explanation of the role policy. See also for how to get the various identifiers:
+    // https://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
+    // For why we need all this to be defined in one variable and 'apply' and 'interpolate' see:
+    // https://www.pulumi.com/docs/intro/concepts/inputs-outputs/. If the strings that use the secret
+    // are combined into a single variable (here 'policy'), pulumi no longer complains.
+    const policy = pulumi.interpolate`{
+        "Version": "2012-10-17",
+        "Statement":[
+          {
+            "Sid": "",
+            "Effect": "Allow",
+            "Principal": {
+              "AWS": [ "${config.getSecret("awsAccountId")?.apply(v => `arn:aws:iam::${v}:root`)}" ]
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+       }
+    `;
+    return new aws.iam.Role(`${name}`, {
+        assumeRolePolicy: policy,
+        tags: {
+            "clusterAccess": `${name}-usr`,
+        },
+    });
+}
+
+// Administrator AWS IAM clusterAdminRole with full access to all AWS resources
+const clusterAdminRole = createIAMRole("clusterAdminRole");
+
 // Create an EKS cluster.
 const clusterName = "folio-cluster";
 const cluster = new eks.Cluster(clusterName, {
@@ -154,8 +190,28 @@ const cluster = new eks.Cluster(clusterName, {
     ],
 
     // Set the desired kubernetes version.
-    version: "1.21"
+    version: "1.21",
+
+    roleMappings: [
+        // Provides full administrator cluster access to the k8s cluster
+        {
+            groups: ["system:masters"],
+            roleArn: clusterAdminRole.arn,
+            username: "pulumi:admin-usr",
+        }
+    ],
 });
+
+new k8s.rbac.v1.ClusterRole("clusterAdminRole", {
+    metadata: {
+        name: "clusterAdminRole",
+    },
+    rules: [{
+        apiGroups: ["*"],
+        resources: ["*"],
+        verbs: ["*"],
+    }]
+}, { provider: cluster.provider });
 
 // Create the node group with a bit more control than we would be given with the
 // defaults. Using this approach we could create multiple node groups if we wanted to
@@ -185,14 +241,14 @@ new aws.eks.Addon(vpcCniName, {
 
 const kubeProxyName = "folio-kube-proxy-addon"
 new aws.eks.Addon(kubeProxyName, {
-    tags: {"Name": kubeProxyName, ...tags},
+    tags: { "Name": kubeProxyName, ...tags },
     clusterName: cluster.eksCluster.name,
     addonName: "kube-proxy",
 });
 
 const corednsName = "folio-coredns-addon"
 new aws.eks.Addon(corednsName, {
-    tags: { "Name": corednsName, ...tags},
+    tags: { "Name": corednsName, ...tags },
     clusterName: cluster.eksCluster.name,
     addonName: "coredns",
 });

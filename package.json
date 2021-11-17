@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@pulumi/kubernetes": "^3.10.0"
+  }
+}
