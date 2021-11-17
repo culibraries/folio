@@ -54,7 +54,12 @@ You are now ready to deploy the stack.
 # Stack deployment
 To deploy the stack and test things out after you have configured your local workstation run `pulumi up`. Use the same command to update the stack after any changes. Pulumi will take care of previewing what has changed and only apply the differences to whatever has already been deployed.
 
-# Connecting to the cluster
+## Connecting
+Connecting is two steps.
+1. Get the kubeconfig file from pulumi.
+2. Assuming a role.
+
+### Getting the kubeconfig file
 After you've deployed something you probably want to get access to it. To update your kubeconfig file with one that will give you access to the cluster:
 ```
 pulumi stack output kubeconfig > ~/.kube/config
@@ -64,8 +69,49 @@ If you want to put the kubeconfig file someplace else set the env var like this.
 ```
 export KUBECONFIG=~/.kube/my_special_config
 ```
+### Connecting to the cluster
 
-To see the nodes run `kubectl get nodes`.
+TODO Export the role name so that it's in the stack state.
+
+TODO Explain how to get the role name from pulumi.
+
+If you didn't create the cluster you'll need to assume the role associated with it. You need to get the role ARN.
+```
+aws iam list-roles --query "Roles[?RoleName == '<role name>'].[RoleName, Arn]"
+```
+Now assume the role:
+```
+aws sts assume-role --role-arn "<role arn>" --role-session-name AWSCLI-Session
+```
+This will output new temporary credentials. Set them in your env. You'll unset them later.
+
+```
+export AWS_ACCESS_KEY_ID=<the role access key id>
+export AWS_SECRET_ACCESS_KEY=<the role secret access key>
+export AWS_SESSION_TOKEN=<the session token>
+```
+
+To check that you've assumed the role:
+```
+aws sts get-caller-identity
+```
+You should now see the details of the role you've assumed. And then this should work:
+```
+kubectl get nodes
+```
+To stop assuming the role do:
+```
+unset AWS_ACCESS_KEY_ID
+unset AWS_SESSION_TOKEN
+unset AWS_SECRET_ACCESS_KEY
+```
+The aws cli will still work because it doesn't store credentials 
+
+### References
+* https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/
+* https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/
+
+## Cleaning up
 
 To clean up resources do `pulumi destroy`.
 
