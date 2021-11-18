@@ -2,6 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
 import * as eks from "@pulumi/eks";
+import * as k8s from "@pulumi/kubernetes";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -65,6 +66,12 @@ const sg = new aws.ec2.SecurityGroup(sgName, {
     description: "Security group for FOLIO EKS cluster.",
     vpcId: vpc.id,
     ingress: [{
+        description: "Allow inbound traffic on 80",
+        fromPort: 80,
+        toPort: 80,
+        protocol: "tcp",
+        cidrBlocks: ["0.0.0.0/0"]
+    }, {
         description: "Allow inbound traffic on 443",
         fromPort: 443,
         toPort: 443,
@@ -92,7 +99,7 @@ const sg = new aws.ec2.SecurityGroup(sgName, {
 const managedPolicyArns: string[] = [
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 ];
 
 // Creates a role and attaches the EKS worker node IAM managed policies.
@@ -196,6 +203,43 @@ new aws.eks.Addon(corednsName, {
     clusterName: cluster.eksCluster.name,
     addonName: "coredns",
 });
+
+// This is just an example of a deployment that we can do. As we move forward
+// we would have one service and deployment for okapi, one for the stripes container,
+// and one for any additional containers that require special ports, like edgeconnexion.
+const appName = "test-nginx";
+const appLabels = { appClass: appName };
+new k8s.apps.v1.Deployment(`${appName}-dep`, {
+    metadata: { labels: appLabels },
+    spec: {
+        replicas: 2,
+        selector: { matchLabels: appLabels },
+        template: {
+            metadata: { labels: appLabels },
+            spec: {
+                containers: [{
+                    name: appName,
+                    image: "nginx",
+                    ports: [{ name: "http", containerPort: 80 }]
+                }],
+            }
+        }
+    },
+}, { provider: cluster.provider });
+
+// This deploys what is an ELB or "classic" load balancer.
+const service = new k8s.core.v1.Service(`${appName}-elb-svc`, {
+    metadata: { labels: appLabels },
+    spec: {
+        // This creates an AWS ELB for us.
+        type: "LoadBalancer",
+        ports: [{ port: 80, targetPort: "http" }],
+        selector: appLabels,
+    },
+}, { provider: cluster.provider });
+
+// Export the URL for the load balanced service.
+export const url = service.status.loadBalancer.ingress[0].hostname;
 
 // Export a few resulting fields to make them easy to use.
 export const vpcId = vpc.id;
