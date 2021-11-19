@@ -24,7 +24,7 @@ const folioSecurityGroup = vpc.deploy.awsSecurityGroup("folio-security-group", t
 const workerRoleManagedPolicyArns: string[] = [
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 ];
 const folioWorkerRoleName = "folio-worker-role";
 const folioWorkerRole = iam.deploy.awsRoleWithManagedPolicyAttachments
@@ -61,6 +61,43 @@ cluster.deploy.awsCreateEksNodeGroup(folioNodeGroupArgs, folioCluster, folioInst
 cluster.deploy.awsAddOn("folio-vpc-cni-addon", "vpc-cni", tags, folioCluster);
 cluster.deploy.awsAddOn("folio-kube-proxy-addon", "kube-proxy", tags, folioCluster);
 cluster.deploy.awsAddOn("folio-coredns-addon", "coredns", tags, folioCluster);
+
+// This is just an example of a deployment that we can do. As we move forward
+// we would have one service and deployment for okapi, one for the stripes container,
+// and one for any additional containers that require special ports, like edgeconnexion.
+const appName = "test-nginx";
+const appLabels = { appClass: appName };
+new k8s.apps.v1.Deployment(`${appName}-dep`, {
+    metadata: { labels: appLabels },
+    spec: {
+        replicas: 2,
+        selector: { matchLabels: appLabels },
+        template: {
+            metadata: { labels: appLabels },
+            spec: {
+                containers: [{
+                    name: appName,
+                    image: "nginx",
+                    ports: [{ name: "http", containerPort: 80 }]
+                }],
+            }
+        }
+    },
+}, { provider: cluster.provider });
+
+// This deploys what is an ELB or "classic" load balancer.
+const service = new k8s.core.v1.Service(`${appName}-elb-svc`, {
+    metadata: { labels: appLabels },
+    spec: {
+        // This creates an AWS ELB for us.
+        type: "LoadBalancer",
+        ports: [{ port: 80, targetPort: "http" }],
+        selector: appLabels,
+    },
+}, { provider: cluster.provider });
+
+// Export the URL for the load balanced service.
+export const url = service.status.loadBalancer.ingress[0].hostname;
 
 // Export a few resulting fields to make them easy to use.
 export const vpcId = folioVpc.id;
