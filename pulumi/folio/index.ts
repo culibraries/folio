@@ -111,7 +111,7 @@ export function createRole(name: string): aws.iam.Role {
     let counter = 0;
     for (const policy of managedPolicyArns) {
         // Create RolePolicyAttachment without returning it.
-        const rpa = new aws.iam.RolePolicyAttachment(`${name}-policy-${counter++}`,
+        new aws.iam.RolePolicyAttachment(`${name}-policy-${counter++}`,
             { policyArn: policy, role: role },
         );
     }
@@ -125,7 +125,7 @@ const role = createRole("folio-worker-role");
 const instanceProfile = new aws.iam.InstanceProfile("folio-instance-profile", { role: role });
 
 // Create an RBAC role for full cluster access to admins.
-function createIAMRole(name: string): aws.iam.Role {
+function createRBACRole(name: string): aws.iam.Role {
     // See https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html
     // for an explanation of the role policy. See also for how to get the various identifiers:
     // https://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
@@ -136,7 +136,7 @@ function createIAMRole(name: string): aws.iam.Role {
         "Version": "2012-10-17",
         "Statement":[
           {
-            "Sid": "",
+            "Sid": "AllowAssumeRoleStatement",
             "Effect": "Allow",
             "Principal": {
               "AWS": [ "${config.getSecret("awsAccountId")?.apply(v => `arn:aws:iam::${v}:root`)}" ]
@@ -144,7 +144,7 @@ function createIAMRole(name: string): aws.iam.Role {
             "Action": "sts:AssumeRole"
           }
         ]
-       }
+      }
     `;
     return new aws.iam.Role(`${name}`, {
         assumeRolePolicy: policy,
@@ -154,8 +154,69 @@ function createIAMRole(name: string): aws.iam.Role {
     });
 }
 
-// Administrator AWS IAM clusterAdminRole with full access to all AWS resources
-const clusterAdminRole = createIAMRole("clusterAdminRole");
+const clusterAdminRole = createRBACRole("clusterAdminRole");
+
+const clusterPolicy = `{
+    "Version": "2012-10-17",
+    "Statement":[
+      {
+        "Sid": "AllowPulumiStateBucketAccess",
+        "Effect": "Allow",
+        "Action": "s3:*",
+        "Resource": [
+          "arn:aws:s3:::cubl-pulumi/folio/${pulumi.getStack()}/*"
+        ]
+      },
+        {
+            "Action": "ec2:*",
+            "Effect": "Allow",
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "elasticloadbalancing:*",
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "cloudwatch:*",
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "autoscaling:*",
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "iam:CreateServiceLinkedRole",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:AWSServiceName": [
+                        "autoscaling.amazonaws.com",
+                        "ec2scheduled.amazonaws.com",
+                        "elasticloadbalancing.amazonaws.com",
+                        "spot.amazonaws.com",
+                        "spotfleet.amazonaws.com",
+                        "transitgateway.amazonaws.com"
+                    ]
+                }
+            }
+        }
+    ]
+  }
+`;
+
+const policy = new aws.iam.Policy("folio-cluster-policy-renamed", {
+    description: "The permissions we need to access the pulumi s3 bucket and modify the cluster",
+    policy: clusterPolicy,
+});
+
+new aws.iam.PolicyAttachment("folio-cluster-policy-attachment", {
+    roles: [clusterAdminRole.name],
+    policyArn: policy.arn,
+});
 
 // Create an EKS cluster.
 const clusterName = "folio-cluster";
