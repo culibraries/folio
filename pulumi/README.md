@@ -142,3 +142,19 @@ $ kubectl get pods -o wide
 NAME          READY   STATUS    RESTARTS   AGE   IP             NODE                                         NOMINATED NODE   READINESS GATES
 folio-debug   1/1     Running   0          39m   10.0.221.166   ip-10-0-199-189.us-west-2.compute.internal   <none>           <none>
 ```
+
+# Recovering when things go horribly wrong
+It is possible to find yourself in a situation where the stack state and the state of deployed resources are out of sync. When this happens you will see messages like this and basically pulumi refuses to do anything (`pulumi up` etc stop working):
+```
+error: .pulumi\stacks\ml-cluster.json: snapshot integrity failure; refusing to use it: resource urn:pulumi:ml-cluster::ml-cluster::azure-nextgen:containerservice/latest:ManagedCluster$kubernetes:core/v1:Namespace::apps refers to unknown provider urn:pulumi:ml-cluster::ml-cluster::pulumi:providers:kubernetes::provider::4299278d-f00b-4efe-b1f1-ee7f0040b1c8
+```
+
+The solution is to do the following to remove the resource that the stack things should exist but doesn't:
+1. Run `pulumi state delete 'urn:pulumi:ml-cluster::ml-cluster::azure-nextgen:containerservice/latest:ManagedCluster$kubernetes:core/v1:Namespace::apps' --disable-integrity-checking` where you replace the urn with the one pulumi complains about. **Pay careful attention to the single quotes. Don't use double. Using double will cause it to say the resource wasn't found.**
+2. Repeat the above if it gives you other resources.
+3. Do `pulumi refresh`. This will synch the cloud resources with your state.
+4. Run `pulumi up` or `pulumi destroy` depending on your needs.
+
+The [pulumi troubleshooting doc](https://www.pulumi.com/docs/troubleshooting/#interrupted-update-recovery) also has other ideas for when other things go wrong.
+
+Generally try not to rename too many resources at once or do massive changes to a stack all in one go. Instead if you know you're going to do this, consider doing a `pulumi destroy` and then `pulumi up` instead. Sometimes this may not be possible, but it may save you some headaches if you can.
