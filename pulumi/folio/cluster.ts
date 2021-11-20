@@ -90,7 +90,7 @@ export module deploy {
         new aws.eks.Addon(name, {
             tags: { "Name": name, ...tags },
             clusterName: cluster.eksCluster.name,
-            addonName: "vpc-cni",
+            addonName: addOnName,
         });
     }
 }

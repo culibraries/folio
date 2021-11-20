@@ -5,6 +5,8 @@ import * as vpc from "./vpc"
 import * as iam from "./iam";
 import * as cluster from "./cluster";
 
+import * as k8s from "@pulumi/kubernetes";
+
 // Set some default tags which we will add to when defining resources.
 const tags = {
     "Owner": "CTA",
@@ -83,7 +85,7 @@ new k8s.apps.v1.Deployment(`${appName}-dep`, {
             }
         }
     },
-}, { provider: cluster.provider });
+}, { provider: folioCluster.provider });
 
 // This deploys what is an ELB or "classic" load balancer.
 const service = new k8s.core.v1.Service(`${appName}-elb-svc`, {
@@ -94,7 +96,7 @@ const service = new k8s.core.v1.Service(`${appName}-elb-svc`, {
         ports: [{ port: 80, targetPort: "http" }],
         selector: appLabels,
     },
-}, { provider: cluster.provider });
+}, { provider: folioCluster.provider });
 
 // Export the URL for the load balanced service.
 export const url = service.status.loadBalancer.ingress[0].hostname;
