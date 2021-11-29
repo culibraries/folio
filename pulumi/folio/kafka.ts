@@ -1,8 +1,8 @@
 import * as k8s from "@pulumi/kubernetes";
 
 // Deploy Kafka using the Helm chart.
-export module kafka {
-    export function Helm(kubeconfig: any, appsNamespaceName: string) {
+export module deployment {
+    export function helm(kubeconfig: any, appsNamespaceName: string) {
         const provider = new k8s.Provider("provider", {
             kubeconfig: kubeconfig,
         });
