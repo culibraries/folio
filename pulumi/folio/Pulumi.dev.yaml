@@ -1,3 +1,5 @@
 encryptionsalt: v1:GWfeZRxc9Vo=:v1:RroXhNUvV+qA4ty+:kPpnQWNfaCKYQCCSWw1xM3EJ/lhyBQ==
 config:
   aws:region: us-west-2
+  folio:awsAccountId:
+    secure: v1:A+RqQL08yiogEcRO:rYuJRnLxRZuoar+uCeBFxqEvbohsxe7pggTlhg==
