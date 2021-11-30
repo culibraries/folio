@@ -144,7 +144,11 @@ folio-debug   1/1     Running   0          39m   10.0.221.166   ip-10-0-199-189.
 ```
 
 # Recovering when things go horribly wrong
+
+## Desync in stack state
+
 It is possible to find yourself in a situation where the stack state and the state of deployed resources are out of sync. When this happens you will see messages like this and basically pulumi refuses to do anything (`pulumi up` etc stop working):
+
 ```
 error: .pulumi\stacks\ml-cluster.json: snapshot integrity failure; refusing to use it: resource urn:pulumi:ml-cluster::ml-cluster::azure-nextgen:containerservice/latest:ManagedCluster$kubernetes:core/v1:Namespace::apps refers to unknown provider urn:pulumi:ml-cluster::ml-cluster::pulumi:providers:kubernetes::provider::4299278d-f00b-4efe-b1f1-ee7f0040b1c8
 ```
@@ -158,3 +162,16 @@ The solution is to do the following to remove the resource that the stack things
 The [pulumi troubleshooting doc](https://www.pulumi.com/docs/troubleshooting/#interrupted-update-recovery) also has other ideas for when other things go wrong.
 
 Generally try not to rename too many resources at once or do massive changes to a stack all in one go. Instead if you know you're going to do this, consider doing a `pulumi destroy` and then `pulumi up` instead. Sometimes this may not be possible, but it may save you some headaches if you can.
+
+## Authentication issues
+
+Errors like `SignatureDoesNotMatch: The request signature we calculated does not match the signature you provided` may be related to your authentication status with AWS. Verify that you are **not** using the `aws sts` temporary credentials.
+
+## Helm Charts
+
+```log
+error: Running program '/Users/jafu6031/repos/folio/pulumi/folio' failed with an unhandled exception:
+  Error: invocation of kubernetes:helm:template returned an error: failed to generate YAML for specified Helm chart: failed to pull chart: chart "bitnami/kafka" version "14.2.3" not found in https://charts.bitnami.com/bitnami repository
+```
+
+This can mean that your local helm repo is out of data and doesn't have the latest charts. Try running `helm repo update`.
