@@ -120,3 +120,45 @@ export const folioNamespaceName = folioNamespace.metadata.name;
 export const kafkaInstance = kafka.deployment.helm(folioCluster, folioNamespaceName);
 // Deploy PostgreSQL via a Helm Chart into the FOLIO namespace
 export const postgresqlInstance = postgresql.deployment.helm(folioCluster, folioNamespaceName);
+
+// Getting necessary settings from the Pulumi config
+const config = new pulumi.Config();
+// TODO Get this from the Service created via the Helm Chart.
+const dbHost = config.requireSecret("db-host");
+const dbAdminUser = config.requireSecret("db-admin-user");
+const dbAdminPassword = config.requireSecret("db-admin-password");
+const dbUserName = config.requireSecret("db-user-name");
+const dbUserPassword = config.requireSecret("db-user-password");
+
+// Create ConfigMaps for PostgreSQL, Kafka, and FOLIO
+const dbConfig = new k8s.core.v1.ConfigMap("postgress-db-config",
+    {
+        metadata: {
+            labels: appLabels,
+            namespace: folioNamespace.id,
+        },
+        data: {
+            DB_PORT: "5432",
+            DB_DATABASE: "folio",
+            DB_QUERYTIMEOUT: "60000",
+            DB_CHARSET: "UTF-8",
+            DB_MAXPOOLSIZE: "5",
+        }
+    },
+    { provider: folioCluster.provider });
+
+const dbConnection = new k8s.core.v1.Secret("postgress-db-connection",
+    {
+        metadata: {
+            labels: appLabels,
+            namespace: folioNamespace.id,
+        },
+        data: {
+            DB_HOST: dbHost.apply(addr => Buffer.from(addr).toString("base64")),
+            DB_USERNAME: dbAdminUser.apply(user => Buffer.from(user).toString("base64")),
+            DB_PASSWORD: dbAdminPassword.apply(pass => Buffer.from(pass).toString("base64")),
+            PG_ADMIN_USER: dbUserName.apply(pguser => Buffer.from(pguser).toString("base64")),
+            PG_ADMIN_USER_PASSWORD: dbUserPassword.apply(pgpass => Buffer.from(pgpass).toString("base64")),
+        }
+    },
+    { provider: folioCluster.provider });

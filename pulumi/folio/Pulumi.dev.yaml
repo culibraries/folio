@@ -3,3 +3,13 @@ config:
   aws:region: us-west-2
   folio:awsAccountId:
     secure: v1:A+RqQL08yiogEcRO:rYuJRnLxRZuoar+uCeBFxqEvbohsxe7pggTlhg==
+  folio:db-admin-password:
+    secure: v1:UcFF3YOJ9pxhj3If:/z4d6+MD+EiOX3U9M25cIZW8kf0vxMohuQ==
+  folio:db-admin-user:
+    secure: v1:qEVoS85kziFFmeGb:fWJH7PPMtmwDe4k9ME3R7BG6C1D+7D13gw==
+  folio:db-host:
+    secure: v1:b6bOrDGKsodR3rva:iPzXDsA5OJ8g4VZT1j+Nq8o3trdODCAyQQ==
+  folio:db-user-name:
+    secure: v1:z8RLiXtxkk6AdjDd:knn/yhJtnvTaDf9AfqS2NUPHfXg=
+  folio:db-user-password:
+    secure: v1:kJ8ykDfPad9d6PF2:/HEnXsmlY+I16j9FYAdtfZ/u+IH6AuAa
