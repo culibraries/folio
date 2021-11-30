@@ -3,7 +3,7 @@ import * as k8s from "@pulumi/kubernetes";
 
 // TODO Use a chart from a URL rather than a repo so that the user doesn't need the chart on their local machine.
 
-// Deploy Kafka using the Helm chart.
+// Deploy PostgreSQL using a Helm chart.
 export module deployment {
     export function helm(cluster: eks.Cluster, appNamespace: k8s.core.v1.Namespace) {
         const instance = new k8s.helm.v3.Chart("postgresql",
