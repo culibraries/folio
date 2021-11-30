@@ -110,6 +110,8 @@ export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
 // Export the cluster's kubeconfig.
 export const kubeconfig = folioCluster.kubeconfig;
 
+// Create a namespace.
+// You must define the provider that you want to use for creating the namespace. 
+const kafkaNamespace = new k8s.core.v1.Namespace("kafka", {}, { provider: folioCluster.provider });
 // Deploy Kafka via a Helm Chart
-const kafkaNamespaceName = "kafka";
-export const kafkaInstance = kafka.kafka.Helm(kubeconfig, kafkaNamespaceName);
+export const kafkaInstance = kafka.deployment.helm(folioCluster, kafkaNamespace);

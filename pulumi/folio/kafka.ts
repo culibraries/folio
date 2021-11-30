@@ -1,25 +1,24 @@
+import * as eks from "@pulumi/eks";
 import * as k8s from "@pulumi/kubernetes";
+
+// TODO Use a chart from a URL rather than a repo so that the user doesn't need the chart on their local machine.
 
 // Deploy Kafka using the Helm chart.
 export module deployment {
-    export function helm(kubeconfig: any, appsNamespaceName: string) {
-        const provider = new k8s.Provider("provider", {
-            kubeconfig: kubeconfig,
-        });
+    export function helm(cluster: eks.Cluster, appNamespace: k8s.core.v1.Namespace) {
         const instance = new k8s.helm.v3.Chart("kafka",
             {
-                namespace: appsNamespaceName,
-                chart: "bitnami/kafka",
-                // Chart version is 14.4.1 which installs Kafka v2.8.1.
-                // See https://github.com/bitnami/charts/blob/master/bitnami/kafka/Chart.yaml
-                // where chart version is "version" and kafka version is "appVersion".
-                version: "14.4.1",
+                namespace: appNamespace.id,
+                repo: "bitnami",
+                chart: "kafka",
+                // Chart version is 14.4.3 which installs Kafka v2.8.1.
+                version: "14.4.3",
                 fetchOpts: { repo: "https://charts.bitnami.com/bitnami" },
+                // See other chart options here https://artifacthub.io/packages/helm/bitnami/kafka
                 values: {
                     replicaCount: 3
                 },
-            },
-        );
+            }, { provider: cluster.provider });
         return instance;
     }
 }
