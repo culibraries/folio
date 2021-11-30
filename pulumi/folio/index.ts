@@ -4,6 +4,7 @@ import * as aws from "@pulumi/aws";
 import * as vpc from "./vpc"
 import * as iam from "./iam";
 import * as cluster from "./cluster";
+import * as kafka from "./kafka";
 
 import * as k8s from "@pulumi/kubernetes";
 
@@ -108,3 +109,9 @@ export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
 
 // Export the cluster's kubeconfig.
 export const kubeconfig = folioCluster.kubeconfig;
+
+// Create a namespace.
+// You must define the provider that you want to use for creating the namespace. 
+const kafkaNamespace = new k8s.core.v1.Namespace("kafka", {}, { provider: folioCluster.provider });
+// Deploy Kafka via a Helm Chart
+export const kafkaInstance = kafka.deployment.helm(folioCluster, kafkaNamespace);
