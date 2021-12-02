@@ -18,8 +18,12 @@ export module prepare {
         for (const moduleName of moduleNames) {
             console.log(`Trying to get module with the name: ${moduleName}`);
             const releaseModule = getModuleByNameFromRelease(moduleName, releaseModules);
-            console.log(`Got module: ${releaseModule.id}`); 
-            var m = new FolioModule(moduleName, "");
+            console.log(`Got module: ${releaseModule.id}`);
+            const start = releaseModule.id.lastIndexOf('-') + 1;
+            const end = releaseModule.id.length;
+            var moduleVersion = releaseModule.id.substring(start, end);
+            console.log(`Module version: ${moduleVersion}`);
+            var m = new FolioModule(moduleName, moduleVersion);
             folioModules.push(m);
         }
 
