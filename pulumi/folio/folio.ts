@@ -1,5 +1,8 @@
 import * as request from "superagent";
 import { FolioModule } from "./classes/FolioModule";
+import * as k8s from "@pulumi/kubernetes";
+import * as eks from "@pulumi/eks";
+import { appautoscaling } from "@pulumi/aws";
 
 export module prepare {
     /**
@@ -55,8 +58,40 @@ export module deploy {
      * Deploys the provided list of folio modules.
      * @param toDeploy The modules to deploy.
      */
-    export function modules(toDeploy: Array<FolioModule>) {
-        console.log(`Deploying modules: ${toDeploy.length}`);
+    export function modules(toDeploy: Array<FolioModule>,
+                            cluster: eks.Cluster,
+                            appNamespace: k8s.core.v1.Namespace) {
+        console.log(`Attempting to deploy ${toDeploy.length} modules`);
+
+        for(const module of toDeploy) {
+            deployModuleWithHelmChart(module, cluster, appNamespace);
+        }
+    }
+
+    function deployModuleWithHelmChart(module:FolioModule,
+                                       cluster: eks.Cluster,
+                                       appNamespace: k8s.core.v1.Namespace) {
+        new k8s.helm.v3.Chart(module.name, {
+            namespace: appNamespace.id,
+            chart: module.name,
+            // We don't specify the version. The latest chart version will be deployed.
+            // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
+            fetchOpts:{
+                repo: "https://folio-org.github.io/folio-helm/",
+            },
+            values: {
+                image: {
+                    tag: module.version
+                },
+                // TODO This is known to not always work. So if modules aren't getting registered
+                // with okapi this is likely the problem. The known workaround is to run this script from
+                // this docker image:
+                // https://github.com/folio-org/folio-helm/tree/master/docker/folio-okapi-registration
+                postJob: {
+                    enabled: true
+                }
+            }
+        }, { provider: cluster.provider });
     }
 }
 

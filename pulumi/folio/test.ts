@@ -21,13 +21,13 @@ describe("When preparing modules for deployment", () => {
          expect(moduleListResult.length).to.equal(moduleList.length);
 
          // Check a module name.
-         let m:FolioModule = moduleListResult[0];
+         const m:FolioModule = moduleListResult[0];
          expect(m.name).to.equal(moduleList[0]);
 
          // Make sure the version resembles a version string without getting too elaborate
          // with the regex (it checks for two periods).
          const matchResult = m.version.match(/\./g);
-         expect(matchResult).is.not.null;
+         expect(matchResult).is.not.null; // Will be null if no match.
          expect(matchResult!.length).is.equal(2);
     });
   });
