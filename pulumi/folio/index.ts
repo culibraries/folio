@@ -5,6 +5,7 @@ import * as vpc from "./vpc"
 import * as iam from "./iam";
 import * as cluster from "./cluster";
 import * as kafka from "./kafka";
+import * as postgresql from "./postgresql";
 
 import * as k8s from "@pulumi/kubernetes";
 
@@ -112,6 +113,8 @@ export const kubeconfig = folioCluster.kubeconfig;
 
 // Create a namespace.
 // You must define the provider that you want to use for creating the namespace. 
-const kafkaNamespace = new k8s.core.v1.Namespace("kafka", {}, { provider: folioCluster.provider });
-// Deploy Kafka via a Helm Chart
-export const kafkaInstance = kafka.deployment.helm(folioCluster, kafkaNamespace);
+const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider: folioCluster.provider });
+// Deploy Kafka via a Helm Chart into the FOLIO namespace
+export const kafkaInstance = kafka.deployment.helm(folioCluster, folioNamespace);
+// Deploy PostgreSQL via a Helm Chart into the FOLIO namespace
+export const postgresqlInstance = postgresql.deployment.helm(folioCluster, folioNamespace);
