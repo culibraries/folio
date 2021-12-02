@@ -123,12 +123,18 @@ export const postgresqlInstance = postgresql.deployment.helm(folioCluster, folio
 
 // Getting necessary settings from the Pulumi config
 const config = new pulumi.Config();
+// Sample values are
+// db-host=test.host --secret db-admin-user=adminuser --secret db-admin-password=adminpass --secret db-user-name=user --secret db-user-password=password
 // TODO Get this from the Service created via the Helm Chart.
-const dbHost = config.requireSecret("db-host");
+config.requireSecret("db-host");
+const dbHost = config.getSecret("db-host");
 const dbAdminUser = config.requireSecret("db-admin-user");
 const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
 const dbUserPassword = config.requireSecret("db-user-password");
+console.log("==========================================================");
+console.log(dbHost);
+console.log("==========================================================");
 
 // Create ConfigMaps for PostgreSQL, Kafka, and FOLIO
 const dbConfig = new k8s.core.v1.ConfigMap("postgress-db-config",
@@ -146,6 +152,10 @@ const dbConfig = new k8s.core.v1.ConfigMap("postgress-db-config",
         }
     },
     { provider: folioCluster.provider });
+const s = config.getSecret("db-host")
+s.
+const james = "james";
+// config.getSecret("awsAccountId")?.apply(v => `arn:aws:iam::${v}:root`)
 
 const dbConnection = new k8s.core.v1.Secret("postgress-db-connection",
     {
