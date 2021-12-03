@@ -2,7 +2,6 @@ import * as request from "superagent";
 import { FolioModule } from "./classes/FolioModule";
 import * as k8s from "@pulumi/kubernetes";
 import * as eks from "@pulumi/eks";
-import { appautoscaling } from "@pulumi/aws";
 
 export module prepare {
     /**
