@@ -5,7 +5,7 @@ import * as pulumi from "@pulumi/pulumi";
 // TODO Use a chart from a URL rather than a repo so that the user doesn't need the chart on their local machine.
 
 // Deploy PostgreSQL using a Helm chart.
-export module deployment {
+export module deploy {
     export function helm(cluster: eks.Cluster, appNamespace: pulumi.Output<string>) {
         const instance = new k8s.helm.v3.Chart("postgresql",
             {

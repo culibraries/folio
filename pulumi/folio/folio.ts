@@ -53,29 +53,55 @@ export module prepare {
 }
 
 export module deploy {
+    export function configMap(name: string, data: any, labels: any, cluster: eks.Cluster,
+        appNamespace: k8s.core.v1.Namespace): k8s.core.v1.ConfigMap {
+        return new k8s.core.v1.ConfigMap(name,
+            {
+                metadata: {
+                    labels: labels,
+                    namespace: appNamespace.id,
+                },
+                data: data
+            },
+            { provider: cluster.provider });
+    }
+
+    export function secret(name: string, data: any, labels: any, cluster: eks.Cluster,
+        appNamespace: k8s.core.v1.Namespace): k8s.core.v1.Secret {
+        return new k8s.core.v1.Secret(name,
+            {
+                metadata: {
+                    labels: labels,
+                    namespace: appNamespace.id,
+                },
+                data: data
+            },
+            { provider: cluster.provider });
+    }
+
     /**
      * Deploys the provided list of folio modules.
      * @param toDeploy The modules to deploy.
      */
     export function modules(toDeploy: Array<FolioModule>,
-                            cluster: eks.Cluster,
-                            appNamespace: k8s.core.v1.Namespace) {
+        cluster: eks.Cluster,
+        appNamespace: k8s.core.v1.Namespace) {
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
 
-        for(const module of toDeploy) {
+        for (const module of toDeploy) {
             deployModuleWithHelmChart(module, cluster, appNamespace);
         }
     }
 
-    function deployModuleWithHelmChart(module:FolioModule,
-                                       cluster: eks.Cluster,
-                                       appNamespace: k8s.core.v1.Namespace) {
+    function deployModuleWithHelmChart(module: FolioModule,
+        cluster: eks.Cluster,
+        appNamespace: k8s.core.v1.Namespace) {
         new k8s.helm.v3.Chart(module.name, {
             namespace: appNamespace.id,
             chart: module.name,
             // We don't specify the version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
-            fetchOpts:{
+            fetchOpts: {
                 repo: "https://folio-org.github.io/folio-helm/",
             },
             values: {
@@ -92,5 +118,7 @@ export module deploy {
             }
         }, { provider: cluster.provider });
     }
+
+
 }
 
