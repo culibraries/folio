@@ -62,46 +62,47 @@ cluster.deploy.awsCreateEksNodeGroup(folioNodeGroupArgs, folioCluster, folioInst
 
 // Configure the networking addons that we want.
 // See https://www.pulumi.com/registry/packages/aws/api-docs/eks/addon/
-cluster.deploy.awsAddOn("folio-vpc-cni-addon", "vpc-cni", tags, folioCluster);
+// TODO The commented out add ons are not deploying properly here.
+//cluster.deploy.awsAddOn("folio-vpc-cni-addon", "vpc-cni", tags, folioCluster);
 cluster.deploy.awsAddOn("folio-kube-proxy-addon", "kube-proxy", tags, folioCluster);
-cluster.deploy.awsAddOn("folio-coredns-addon", "coredns", tags, folioCluster);
+//cluster.deploy.awsAddOn("folio-coredns-addon", "coredns", tags, folioCluster);
 
-// This is just an example of a deployment that we can do. As we move forward
-// we would have one service and deployment for okapi, one for the stripes container,
-// and one for any additional containers that require special ports, like edgeconnexion.
-const appName = "test-nginx";
-const appLabels = { appClass: appName };
-new k8s.apps.v1.Deployment(`${appName}-dep`, {
-    metadata: { labels: appLabels },
-    spec: {
-        replicas: 2,
-        selector: { matchLabels: appLabels },
-        template: {
-            metadata: { labels: appLabels },
-            spec: {
-                containers: [{
-                    name: appName,
-                    image: "nginx",
-                    ports: [{ name: "http", containerPort: 80 }]
-                }],
-            }
-        }
-    },
-}, { provider: folioCluster.provider });
+// // This is just an example of a deployment that we can do. As we move forward
+// // we would have one service and deployment for okapi, one for the stripes container,
+// // and one for any additional containers that require special ports, like edgeconnexion.
+// const appName = "test-nginx";
+// const appLabels = { appClass: appName };
+// new k8s.apps.v1.Deployment(`${appName}-dep`, {
+//     metadata: { labels: appLabels },
+//     spec: {
+//         replicas: 2,
+//         selector: { matchLabels: appLabels },
+//         template: {
+//             metadata: { labels: appLabels },
+//             spec: {
+//                 containers: [{
+//                     name: appName,
+//                     image: "nginx",
+//                     ports: [{ name: "http", containerPort: 80 }]
+//                 }],
+//             }
+//         }
+//     },
+// }, { provider: folioCluster.provider });
 
-// This deploys what is an ELB or "classic" load balancer.
-const service = new k8s.core.v1.Service(`${appName}-elb-svc`, {
-    metadata: { labels: appLabels },
-    spec: {
-        // This creates an AWS ELB for us.
-        type: "LoadBalancer",
-        ports: [{ port: 80, targetPort: "http" }],
-        selector: appLabels,
-    },
-}, { provider: folioCluster.provider });
+// // This deploys what is an ELB or "classic" load balancer.
+// const service = new k8s.core.v1.Service(`${appName}-elb-svc`, {
+//     metadata: { labels: appLabels },
+//     spec: {
+//         // This creates an AWS ELB for us.
+//         type: "LoadBalancer",
+//         ports: [{ port: 80, targetPort: "http" }],
+//         selector: appLabels,
+//     },
+// }, { provider: folioCluster.provider });
 
 // Export the URL for the load balanced service.
-export const url = service.status.loadBalancer.ingress[0].hostname;
+//export const url = service.status.loadBalancer.ingress[0].hostname;
 
 // Export a few resulting fields to make them easy to use.
 export const vpcId = folioVpc.id;
@@ -121,23 +122,10 @@ export const kafkaInstance = kafka.deployment.helm(folioCluster, folioNamespaceN
 // Deploy PostgreSQL via a Helm Chart into the FOLIO namespace
 export const postgresqlInstance = postgresql.deployment.helm(folioCluster, folioNamespaceName);
 
-// Getting necessary settings from the Pulumi config
-const config = new pulumi.Config();
-// Sample values are
-// db-host=test.host --secret db-admin-user=adminuser --secret db-admin-password=adminpass --secret db-user-name=user --secret db-user-password=password
-// TODO Get this from the Service created via the Helm Chart.
-config.requireSecret("db-host");
-const dbHost = config.getSecret("db-host");
-const dbAdminUser = config.requireSecret("db-admin-user");
-const dbAdminPassword = config.requireSecret("db-admin-password");
-const dbUserName = config.requireSecret("db-user-name");
-const dbUserPassword = config.requireSecret("db-user-password");
-console.log("==========================================================");
-console.log(dbHost);
-console.log("==========================================================");
-
 // Create ConfigMaps for PostgreSQL, Kafka, and FOLIO
-const dbConfig = new k8s.core.v1.ConfigMap("postgress-db-config",
+const appName = "folio";
+const appLabels = { appClass: appName };
+new k8s.core.v1.ConfigMap("postgress-db-config",
     {
         metadata: {
             labels: appLabels,
@@ -152,23 +140,42 @@ const dbConfig = new k8s.core.v1.ConfigMap("postgress-db-config",
         }
     },
     { provider: folioCluster.provider });
-const s = config.getSecret("db-host")
-s.
-const james = "james";
-// config.getSecret("awsAccountId")?.apply(v => `arn:aws:iam::${v}:root`)
 
-const dbConnection = new k8s.core.v1.Secret("postgress-db-connection",
+// Getting necessary settings from the Pulumi config
+const config = new pulumi.Config();
+// Sample values are
+// db-host=test.host --secret db-admin-user=adminuser --secret db-admin-password=adminpass --secret db-user-name=user --secret db-user-password=password
+// TODO Get this from the Service created via the Helm Chart.
+
+config.requireSecret("db-host");
+const dbHost = config.getSecret("db-host");
+const dbAdminUser = config.requireSecret("db-admin-user");
+const dbAdminPassword = config.requireSecret("db-admin-password");
+const dbUserName = config.requireSecret("db-user-name");
+const dbUserPassword = config.requireSecret("db-user-password");
+console.log("==========================================================");
+console.log(dbHost);
+console.log("==========================================================");
+
+new k8s.core.v1.Secret("postgress-db-connection",
     {
         metadata: {
             labels: appLabels,
             namespace: folioNamespace.id,
         },
         data: {
-            DB_HOST: dbHost.apply(addr => Buffer.from(addr).toString("base64")),
-            DB_USERNAME: dbAdminUser.apply(user => Buffer.from(user).toString("base64")),
-            DB_PASSWORD: dbAdminPassword.apply(pass => Buffer.from(pass).toString("base64")),
-            PG_ADMIN_USER: dbUserName.apply(pguser => Buffer.from(pguser).toString("base64")),
-            PG_ADMIN_USER_PASSWORD: dbUserPassword.apply(pgpass => Buffer.from(pgpass).toString("base64")),
+            //DB_HOST: pulumi.interpolate`${config.getSecret("db-host")}`
+            // This also compiles:
+            DB_HOST: base64Encode(pulumi.interpolate`${config.getSecret("db-host")}`)
+            // DB_USERNAME: "",
+            // DB_PASSWORD: "",
+            // PG_ADMIN_USER: "",
+            // PG_ADMIN_USER_PASSWORD: "",
         }
     },
     { provider: folioCluster.provider });
+
+
+function base64Encode(source: pulumi.Output<string>): pulumi.Output<string> {
+    return source.apply(v => Buffer.from(v).toString("base64"));
+}

@@ -86,7 +86,6 @@ export module deploy {
     }
 
     export function awsAddOn(name: string, addOnName:string, tags: object, cluster: eks.Cluster) {
-        const vpcCniName = "folio-vpc-cni-addon"
         new aws.eks.Addon(name, {
             tags: { "Name": name, ...tags },
             clusterName: cluster.eksCluster.name,
