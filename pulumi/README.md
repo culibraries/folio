@@ -100,7 +100,8 @@ Run `pulumi up` to create or update a stack.
     If you didn't create the cluster you'll need to assume the role associated with it. You need to get the role ARN.
 
     ```sh
-    aws iam list-roles --query "Roles[?RoleName == '<role name>'].[RoleName, Arn]"
+    aws iam list-roles
+    # In the response use `/folio-cluster-admin-role` to find the assoicated role and note the `Arn`
     ```
 
     Now assume the role:
