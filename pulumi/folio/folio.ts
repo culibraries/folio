@@ -120,9 +120,11 @@ export module deploy {
                 }
             }
 
-        }, { provider: cluster.provider,
+        }, {
+            provider: cluster.provider,
 
-            // Hoping this will trigger pods to be replaced.
-            replaceOnChanges: ["*"] });
+                // Hoping this will trigger pods to be replaced.
+                replaceOnChanges: ["*"]
+            });
     }
 }

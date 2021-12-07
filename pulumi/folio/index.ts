@@ -103,7 +103,7 @@ const configMapData = {
     DB_MAXPOOLSIZE: "5",
     // TODO Add KAFKA_HOST, KAFKA_PORT
 };
-folio.deploy.configMap("default-config", configMapData, appLabels, folioCluster, folioNamespace);
+const configMap = folio.deploy.configMap("default-config", configMapData, appLabels, folioCluster, folioNamespace);
 
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
@@ -123,7 +123,21 @@ var secretData = {
     KAFKA_HOST: Buffer.from("kafka").toString("base64"),
     KAFKA_PORT: Buffer.from("9092").toString("base64")
 };
-folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
+const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
+
+// Create the PostgreSQL database using a container.
+// TODO Add a conditional for this, it should not run every time. Alternatively, update the script to handle a case where the DB and user already exist.
+const postgresqlDatabase = postgresql.deploy.createDatabase(secret, folioNamespace);
+
+
+// TODO Determine if the Helm chart takes care of the following:
+// Create hazelcast service account
+// Create okapi pod service account
+// Create okapi service
+// Create hazelcast configmap
+// Create okapi deployment
+// Create okapi ingress
+
 
 // const modulesToDeploy = [
 //     "okapi",

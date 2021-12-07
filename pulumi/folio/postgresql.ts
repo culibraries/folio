@@ -18,4 +18,28 @@ export module deploy {
             }, { provider: cluster.provider });
         return instance;
     }
+
+    export function createDatabase(secret: k8s.core.v1.Secret, appNamespace: k8s.core.v1.Namespace) {
+        return new k8s.batch.v1.Job("create-database", {
+            metadata: {
+                name: "create-database",
+                namespace: appNamespace.id,
+            },
+            spec: {
+                template: {
+                    spec: {
+                        containers: [{
+                            name: "create-database",
+                            image: "culibraries/create-database:0.16",
+                            envFrom: [
+                                { secretRef: { name: secret.metadata.name } }
+                            ],
+                        }],
+                        restartPolicy: "Never",
+                    },
+                },
+                backoffLimit: 3,
+            },
+        });
+    }
 }
