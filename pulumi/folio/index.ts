@@ -10,6 +10,7 @@ import * as folio from "./folio";
 import * as util from "./util";
 
 import * as k8s from "@pulumi/kubernetes";
+import { FolioModule } from "./classes/FolioModule";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -118,21 +119,31 @@ var secretData = {
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
     PG_ADMIN_USER: util.base64Encode(pulumi.interpolate`${dbAdminUser}`),
     PG_ADMIN_USER_PASSWORD: util.base64Encode(pulumi.interpolate`${dbAdminPassword}`),
+    DB_DATABASE: Buffer.from("postgres").toString("base64"),
+    KAFKA_HOST: Buffer.from("kafka").toString("base64"),
+    KAFKA_PORT: Buffer.from("9092").toString("base64")
 };
-folio.deploy.secret("default-secret", secretData, appLabels, folioCluster, folioNamespace);
+folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
 
-const modulesToDeploy = [
-    "okapi",
-    "mod-users",
-    "mod-login",
-    "mod-permissions",
-    "mod-authtoken",
-    "mod-configuration"
-];
-const release = "R2-2021";
-const moduleListPromise = folio.prepare.moduleList(modulesToDeploy, release);
-moduleListPromise.then(modules => {
-    folio.deploy.modules(modules, folioCluster, folioNamespace);
-}).catch(err => {
-    console.error(`Unable to create folio module list: ${err}`);
-});
+// const modulesToDeploy = [
+//     "okapi",
+//     // "mod-users",
+//     // "mod-login",
+//     // "mod-permissions",
+//     // "mod-authtoken",
+//     // "mod-configuration"
+// ];
+// const release = "R2-2021";
+// const moduleListPromise = folio.prepare.moduleList(modulesToDeploy, release);
+// moduleListPromise.then(modules => {
+//     // TODO This method of deploying is likely what is causing the pods to become
+//     // disconnected from pulumi. It can create, but then has no record of them in
+//     // the state. This can be confirmed by testing outside of the promise.
+//     folio.deploy.modules(modules, folioCluster, folioNamespace);
+// }).catch(err => {
+//     console.error(`Unable to create folio module list: ${err}`);
+// });
+
+let modules = new Array<FolioModule>();
+modules.push(new FolioModule("okapi", "4.9.0"));
+folio.deploy.modules(modules, folioCluster, folioNamespace);

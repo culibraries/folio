@@ -14,7 +14,7 @@ export module deploy {
                 chart: "postgresql",
                 // Chart version is 10.13.9 which installs PostgreSQL v11.14.0.
                 version: "10.13.9",
-                fetchOpts: { repo: "https://charts.bitnami.com/bitnami" }
+                fetchOpts: { repo: "https://charts.bitnami.com/bitnami" },
             }, { provider: cluster.provider });
         return instance;
     }

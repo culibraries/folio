@@ -58,6 +58,7 @@ export module deploy {
         return new k8s.core.v1.ConfigMap(name,
             {
                 metadata: {
+                    name: name,
                     labels: labels,
                     namespace: appNamespace.id,
                 },
@@ -71,10 +72,11 @@ export module deploy {
         return new k8s.core.v1.Secret(name,
             {
                 metadata: {
+                    name: name,
                     labels: labels,
                     namespace: appNamespace.id,
                 },
-                data: data
+                data: data,
             },
             { provider: cluster.provider });
     }
@@ -96,29 +98,31 @@ export module deploy {
     function deployModuleWithHelmChart(module: FolioModule,
         cluster: eks.Cluster,
         appNamespace: k8s.core.v1.Namespace) {
-        new k8s.helm.v3.Chart(module.name, {
+        new k8s.helm.v3.Release(module.name, {
             namespace: appNamespace.id,
             chart: module.name,
             // We don't specify the version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
-            fetchOpts: {
+            repositoryOpts: {
                 repo: "https://folio-org.github.io/folio-helm/",
             },
             values: {
                 image: {
-                    tag: module.version
+                    tag: module.version,
+                    repository: `folioorg/${module.name}`
                 },
                 // TODO This is known to not always work. So if modules aren't getting registered
                 // with okapi this is likely the problem. The known workaround is to run this script from
                 // this docker image:
                 // https://github.com/folio-org/folio-helm/tree/master/docker/folio-okapi-registration
                 postJob: {
-                    enabled: true
+                    enabled: false
                 }
             }
-        }, { provider: cluster.provider });
+
+        }, { provider: cluster.provider,
+
+            // Hoping this will trigger pods to be replaced.
+            replaceOnChanges: ["*"] });
     }
-
-
 }
-
