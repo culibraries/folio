@@ -4,7 +4,7 @@ config:
   folio:awsAccountId:
     secure: v1:A+RqQL08yiogEcRO:rYuJRnLxRZuoar+uCeBFxqEvbohsxe7pggTlhg==
   folio:db-admin-password:
-    secure: v1:YWaroTM+a3bcyBKK:AtyD7AZvcUHl/ofM2df3rKURF3iNT7UMCK6LWRBidyQTk4GY
+    secure: v1:fa0xQbp/XC2W2k3H:bD4Ym807AYAUyITuFJIG7EMStY6bv2NdeSI=
   folio:db-admin-user:
     secure: v1:Iz//zCTWi/ULk5ti:QigreOvH+1F2dmZTYD3LJs+G2LH+5vnr
   folio:db-host:
