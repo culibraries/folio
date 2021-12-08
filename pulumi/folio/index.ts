@@ -121,39 +121,37 @@ var secretData = {
     KAFKA_PORT: Buffer.from("9092").toString("base64")
 };
 
+// TODO Add a conditional for this, it should not run every time.
+// Alternatively, update the script to handle a case where the DB and user already exist.
 export const postgresqlInstance = postgresql.deploy.helm(folioCluster,
                                                          folioNamespaceName,
                                                          dbAdminPassword);
 
 const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
 
-// Create the PostgreSQL database using a container.
-// TODO Add a conditional for this, it should not run every time. Alternatively, update the script to handle a case where the DB and user already exist.
-
-// TODO Instead of doing the default password for postgres, that the helm chart creates,
-// create an admin user when the chart deploys, using our secret.
-//const postgresqlDatabase = postgresql.deploy.createDatabase(secret, folioNamespace);
-
 const modulesToDeploy = [
     "okapi",
-    //"okapi",
-    // "mod-users",
-    // "mod-login",
-    // "mod-permissions",
-    // "mod-authtoken",
-    // "mod-configuration"
+    "mod-users",
+    "mod-login",
+    "mod-permissions",
+    "mod-authtoken",
+    "mod-configuration"
 ];
 const release = "R2-2021";
 const moduleListPromise = folio.prepare.moduleList(modulesToDeploy, release);
 moduleListPromise.then(modules => {
+    // Get a reference to the okapi module.
+    let okapi:FolioModule = util.getModuleByName("okapi", modules);
+
+    // Deploy okapi first.
+    folio.deploy.okapi(okapi, folioCluster, folioNamespace);
+
+    // Deploy the rest of the modules that we want.
     folio.deploy.modules(modules, folioCluster, folioNamespace);
 }).catch(err => {
     console.error(`Unable to create folio module list: ${err}`);
 });
 
-// let modules = new Array<FolioModule>();
-// modules.push(new FolioModule("okapi", "4.9.0"));
-// folio.deploy.modules(modules, folioCluster, folioNamespace);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account

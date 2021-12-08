@@ -82,6 +82,15 @@ export module deploy {
     }
 
     /**
+     * Deploy okapi.
+     * @param cluster A reference to the cluster.
+     * @param appNamespace A reference to the app namespace.
+     */
+    export function okapi(okapi: FolioModule, cluster: eks.Cluster, appNamespace: k8s.core.v1.Namespace) {
+        deployModuleWithHelmChart(okapi, cluster, appNamespace, true)
+    }
+
+    /**
      * Deploys the provided list of folio modules.
      * @param toDeploy The modules to deploy.
      */
@@ -91,13 +100,14 @@ export module deploy {
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
 
         for (const module of toDeploy) {
-            deployModuleWithHelmChart(module, cluster, appNamespace);
+            deployModuleWithHelmChart(module, cluster, appNamespace, false);
         }
     }
 
     function deployModuleWithHelmChart(module: FolioModule,
-        cluster: eks.Cluster,
-        appNamespace: k8s.core.v1.Namespace) {
+                                       cluster: eks.Cluster,
+                                       appNamespace: k8s.core.v1.Namespace,
+                                       deployIngress: boolean) {
         new k8s.helm.v3.Release(module.name, {
             namespace: appNamespace.id,
             chart: module.name,
@@ -107,10 +117,18 @@ export module deploy {
                 repo: "https://folio-org.github.io/folio-helm/",
             },
             values: {
+
+                // Get the image from the version associated with the release.
                 image: {
                     tag: module.version,
                     repository: `folioorg/${module.name}`
                 },
+
+                // Will handle creating an ingress for this module if true.
+                ingress: {
+                    enabled: deployIngress
+                },
+
                 // TODO This is known to not always work. So if modules aren't getting registered
                 // with okapi this is likely the problem. The known workaround is to run this script from
                 // this docker image:
