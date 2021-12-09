@@ -1,54 +1,43 @@
-import * as request from "superagent";
 import { FolioModule } from "./classes/FolioModule";
 import * as k8s from "@pulumi/kubernetes";
 import * as eks from "@pulumi/eks";
+import { Resource } from "@pulumi/pulumi";
+import * as fs from 'fs';
 
 export module prepare {
     /**
      * Prepare a list of folio modules which can be used to deploy.
-     * @param moduleNames A list of module names to deploy.
-     * @param release The release in the form of a "quarterly" release.
      * @returns A list of FolioModule objects.
      */
-    export async function moduleList(moduleNames: Array<string>, release: string): Promise<FolioModule[]> {
+    export function moduleList(releaseFile: string): FolioModule[] {
         var folioModules: FolioModule[] = new Array<FolioModule>();
-        console.log(`Attempting to prepare ${moduleNames.length} modules for deployment`);
 
-        const releaseModules = await getModulesForRelease(release);
-        console.log(`Got ${releaseModules.length} modules in platform-complete for ${release} release`);
+        const releaseModules = getModulesForRelease(releaseFile);
+        console.log(`Got ${releaseModules.length} modules from file: ${releaseFile}`);
 
-        for (const moduleName of moduleNames) {
-            console.log(`Trying to get module with the name: ${moduleName}`);
-            const releaseModule = getModuleByNameFromRelease(moduleName, releaseModules);
-            console.log(`Got module: ${releaseModule.id}`);
-            const start = releaseModule.id.lastIndexOf('-') + 1;
-            const end = releaseModule.id.length;
-            var moduleVersion = releaseModule.id.substring(start, end);
-            console.log(`Module version: ${moduleVersion}`);
-            var m = new FolioModule(moduleName, moduleVersion);
+        for (const module of releaseModules) {
+            console.log(`Got module: ${module.id}`);
+
+            const versionStart = module.id.lastIndexOf('-') + 1;
+            const versionEnd = module.id.length;
+            const moduleVersion = module.id.substring(versionStart, versionEnd);
+            console.log(`Got module version: ${moduleVersion}`);
+
+            const nameStart = 0;
+            const nameEnd = module.id.lastIndexOf('-');
+            const moduleName = module.id.substring(nameStart, nameEnd);
+            console.log(`Got module name: ${moduleName}`);
+
+            const m = new FolioModule(moduleName, moduleVersion);
             folioModules.push(m);
         }
 
         return folioModules;
     }
 
-    async function getModulesForRelease(release: string): Promise<Array<any>> {
-        var endpoint = `https://raw.githubusercontent.com/folio-org/platform-complete/${release}/install.json`;
-        console.log(`Fetching folio module list from endpoint: ${endpoint}`);
-        const response = await request.get(endpoint);
-        if (response.statusCode == 200) {
-            return JSON.parse(response.text);
-        }
-        throw new Error(`Unexpected response from github while getting modules for release: ${response.statusCode}`);
-    }
-
-    function getModuleByNameFromRelease(moduleName: string, releaseModules: Array<any>): any {
-        for (const m of releaseModules) {
-            if (m.id.startsWith(moduleName)) {
-                return m;
-            }
-        }
-        throw new Error(`No module found with the name: ${moduleName}`);
+    function getModulesForRelease(releaseFile: string): Array<any> {
+        const release  = fs.readFileSync(releaseFile, 'utf8');
+        return JSON.parse(release);
     }
 }
 
@@ -82,11 +71,13 @@ export module deploy {
     }
 
     /**
-     * Deploy okapi.
+     * Deploy okapi along with a LoadBalancer service to handle external traffic.
      * @param cluster A reference to the cluster.
      * @param appNamespace A reference to the app namespace.
+     * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(module: FolioModule, cluster: eks.Cluster, appNamespace: k8s.core.v1.Namespace) {
+    export function okapi(module: FolioModule, cluster: eks.Cluster,
+        appNamespace: k8s.core.v1.Namespace): k8s.helm.v3.Release {
         const values = {
             // Get the image from the version associated with the release.
             image: {
@@ -94,18 +85,9 @@ export module deploy {
                 repository: `folioorg/${module.name}`
             },
 
-            // Will handle creating an ingress for this module if true.
-            // ingress: {
-            //     enabled: deployIngress,
-            //     hosts: [
-            //         {
-            //             paths: ["/"]
-            //         }
-            //     ]
-            // },
-
             service: {
                 type: "LoadBalancer",
+                // TODO Will probably want to make this 443.
                 port: 80,
                 containerPort: 9130
             },
@@ -119,20 +101,24 @@ export module deploy {
             }
         }
 
-        deployModuleWithHelmChart(module, cluster, appNamespace, values)
+        return deployModuleWithHelmChart(module, cluster, appNamespace, values);
     }
 
     /**
-     * Deploys the provided list of folio modules.
+     * Deploys the provided list of folio modules. This should be used for any module
+     * that requires a ClusterIp type of service (so not okapi, and not an edge module).
      * @param toDeploy The modules to deploy.
      */
     export function modules(toDeploy: Array<FolioModule>,
         cluster: eks.Cluster,
-        appNamespace: k8s.core.v1.Namespace) {
+        appNamespace: k8s.core.v1.Namespace,
+        okapiRelease:  k8s.helm.v3.Release) {
+        console.log("Removing okapi from list of modules since it should have already been deployed");
+        toDeploy = toDeploy.filter(module => module.name !== "okapi");
+
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
 
         for (const module of toDeploy) {
-
             const values = {
                 // Get the image from the version associated with the release.
                 image: {
@@ -149,15 +135,17 @@ export module deploy {
                 }
             }
 
-            deployModuleWithHelmChart(module, cluster, appNamespace, values);
+            const dependsOn:Resource[] = [ okapiRelease ];
+            deployModuleWithHelmChart(module, cluster, appNamespace, values, dependsOn);
         }
     }
 
     function deployModuleWithHelmChart(module: FolioModule,
         cluster: eks.Cluster,
         appNamespace: k8s.core.v1.Namespace,
-        values: object) {
-        new k8s.helm.v3.Release(module.name, {
+        values: object,
+        dependsOn?: Resource[]): k8s.helm.v3.Release {
+        return new k8s.helm.v3.Release(module.name, {
             namespace: appNamespace.id,
             chart: module.name,
             // We don't specify the version. The latest chart version will be deployed.
@@ -171,7 +159,10 @@ export module deploy {
             provider: cluster.provider,
 
             // Hoping this will trigger pods to be replaced.
-            replaceOnChanges: ["*"]
+            // TODO Determine what the right thing to do here is.
+            replaceOnChanges: ["*"],
+
+            dependsOn: dependsOn
         });
     }
 }

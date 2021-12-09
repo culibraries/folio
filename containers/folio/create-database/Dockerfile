@@ -1,3 +1,5 @@
+# TODO I think this Dockerfile and the create-db.sh can be removed. Okapi creates the user.
+
 FROM alpine:3.13
 
 # Prerequisites

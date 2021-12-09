@@ -114,6 +114,8 @@ var secretData = {
     DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
+    // TODO It would appear that folio-helm wants this in this secret rather than the configMap.
+    DB_PORT: Buffer.from("5432").toString("base64"),
     PG_ADMIN_USER: util.base64Encode(pulumi.interpolate`${dbAdminUser}`),
     PG_ADMIN_USER_PASSWORD: util.base64Encode(pulumi.interpolate`${dbAdminPassword}`),
     DB_DATABASE: Buffer.from("postgres").toString("base64"),
@@ -124,37 +126,24 @@ var secretData = {
 // TODO Add a conditional for this, it should not run every time.
 // Alternatively, update the script to handle a case where the DB and user already exist.
 export const postgresqlInstance = postgresql.deploy.helm(folioCluster,
-                                                         folioNamespaceName,
-                                                         dbAdminPassword);
+    folioNamespaceName,
+    dbAdminPassword);
 
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
 folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
 
-const modulesToDeploy = [
-    "okapi",
-    "mod-users",
-    "mod-login",
-    "mod-permissions",
-    "mod-authtoken",
-    "mod-configuration"
-];
-const release = "R2-2021";
-const moduleListPromise = folio.prepare.moduleList(modulesToDeploy, release);
-moduleListPromise.then(modules => {
-    // Get a reference to the okapi module.
-    const okapi:FolioModule = util.getModuleByName("okapi", modules);
+const releaseFile = "./releases/R2-2021.json";
+const modules = folio.prepare.moduleList(releaseFile);
 
-    // Deploy okapi first. Will also give it an ingress.
-    // TODO Maybe return a reference to this object and make subsequent operations
-    // dependent on the resource.
-    folio.deploy.okapi(okapi, folioCluster, folioNamespace);
+// Get a reference to the okapi module.
+const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
-    // Deploy the rest of the modules that we want.
-    //folio.deploy.modules(modules, folioCluster, folioNamespace);
-}).catch(err => {
-    console.error(`Unable to create folio module list: ${err}`);
-});
+// Deploy okapi first.
+const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster, folioNamespace);
+
+// Deploy the rest of the modules that we want.
+folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
 
 
 // TODO Determine if the Helm chart takes care of the following:
