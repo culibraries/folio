@@ -36,7 +36,7 @@ export module prepare {
     }
 
     function getModulesForRelease(releaseFile: string): Array<any> {
-        const release  = fs.readFileSync(releaseFile, 'utf8');
+        const release = fs.readFileSync(releaseFile, 'utf8');
         return JSON.parse(release);
     }
 }
@@ -78,6 +78,7 @@ export module deploy {
      */
     export function okapi(module: FolioModule, cluster: eks.Cluster,
         appNamespace: k8s.core.v1.Namespace): k8s.helm.v3.Release {
+        const chartName = module.name
         const values = {
             // Get the image from the version associated with the release.
             image: {
@@ -101,7 +102,37 @@ export module deploy {
             }
         }
 
-        return deployModuleWithHelmChart(module, cluster, appNamespace, values);
+        return deployModuleWithHelmChart(chartName, cluster, appNamespace, values);
+    }
+
+    export function stripes(module: FolioModule, cluster: eks.Cluster, appNamespace: k8s.core.v1.Namespace): k8s.helm.v3.Release {
+        const chartName = "platform-complete"
+        const values = {
+            // Get the image from the version associated with the release.
+            image: {
+                tag: module.version,
+                // We build our own images so that we can include the correct logo files; hostnames for stripes and okapi.
+                repository: `culibraries/${module.name}`
+            },
+
+            service: {
+                type: "LoadBalancer",
+                // TODO Will probably want to make this 443.
+                port: 80,
+                containerPort: 80
+            },
+
+            // TODO This is known to not always work. So if modules aren't getting registered
+            // with okapi this is likely the problem. The known workaround is to run this script from
+            // this docker image:
+            // https://github.com/folio-org/folio-helm/tree/master/docker/folio-okapi-registration
+            // TODO Do we need to register Stripes at all? This is declaration is probably useful regardless because the chart does include a post-install-job
+            postJob: {
+                enabled: false
+            }
+        }
+
+        return deployModuleWithHelmChart(chartName, cluster, appNamespace, values);
     }
 
     /**
@@ -112,13 +143,14 @@ export module deploy {
     export function modules(toDeploy: Array<FolioModule>,
         cluster: eks.Cluster,
         appNamespace: k8s.core.v1.Namespace,
-        okapiRelease:  k8s.helm.v3.Release) {
+        okapiRelease: k8s.helm.v3.Release) {
         console.log("Removing okapi from list of modules since it should have already been deployed");
         toDeploy = toDeploy.filter(module => module.name !== "okapi");
 
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
 
         for (const module of toDeploy) {
+            const chartName = module.name
             const values = {
                 // Get the image from the version associated with the release.
                 image: {
@@ -135,19 +167,19 @@ export module deploy {
                 }
             }
 
-            const dependsOn:Resource[] = [ okapiRelease ];
-            deployModuleWithHelmChart(module, cluster, appNamespace, values, dependsOn);
+            const dependsOn: Resource[] = [okapiRelease];
+            deployModuleWithHelmChart(chartName, cluster, appNamespace, values, dependsOn);
         }
     }
 
-    function deployModuleWithHelmChart(module: FolioModule,
+    function deployModuleWithHelmChart(chartName: string,
         cluster: eks.Cluster,
         appNamespace: k8s.core.v1.Namespace,
         values: object,
         dependsOn?: Resource[]): k8s.helm.v3.Release {
-        return new k8s.helm.v3.Release(module.name, {
+        return new k8s.helm.v3.Release(chartName, {
             namespace: appNamespace.id,
-            chart: module.name,
+            chart: chartName,
             // We don't specify the version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
             repositoryOpts: {
@@ -156,13 +188,13 @@ export module deploy {
             values: values
 
         }, {
-            provider: cluster.provider,
+                provider: cluster.provider,
 
-            // Hoping this will trigger pods to be replaced.
-            // TODO Determine what the right thing to do here is.
-            replaceOnChanges: ["*"],
+                // Hoping this will trigger pods to be replaced.
+                // TODO Determine what the right thing to do here is.
+                replaceOnChanges: ["*"],
 
-            dependsOn: dependsOn
-        });
+                dependsOn: dependsOn
+            });
     }
 }

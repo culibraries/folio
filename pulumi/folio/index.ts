@@ -138,6 +138,11 @@ const modules = folio.prepare.moduleList(releaseFile);
 
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
+// Create a reference to the stripes module,
+const stripes: FolioModule = {
+    name: "stripes",
+    version: "2021.r2.1"
+}
 
 // Deploy okapi first.
 const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster, folioNamespace);
@@ -145,6 +150,8 @@ const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster
 // Deploy the rest of the modules that we want.
 folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
 
+// Deploy Stripes
+const stripesRelease: k8s.helm.v3.Release = folio.deploy.stripes(stripes, folioCluster, folioNamespace);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account
