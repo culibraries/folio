@@ -76,6 +76,40 @@ cubl-pulumi/folio/dev/.pulumi
     export PULUMI_CONFIG_PASSPHRASE=<PULUMI_CONFIG_PASSPHRASE>
     ```
 
+### Listing and selecting a stack
+
+Run `pulumi stack ls` to list stacks. The asterisk indicates which stack is currently selected. You can select another stack with `pulumi stack select <stack>`
+
+```sh
+$ pulumi stack ls
+NAME                                      LAST UPDATE              RESOURCE COUNT
+staging*                                  n/a                      n/a
+test                                      2 weeks ago              121
+
+$ pulumi stack select test
+NAME                                      LAST UPDATE              RESOURCE COUNT
+staging                                   n/a                      n/a
+test*                                     2 weeks ago              121
+```
+
+### Interacting with Pulumi Configuration
+
+```sh
+# Show all pulumi configuration including secrets in plaintext
+$ pulumi config  --show-secrets
+KEY                VALUE
+aws:region         us-west-2
+awsAccountId       123456789
+db-admin-password  adminpass
+db-admin-user      adminuser
+db-host            test.host
+db-user-name       user
+db-user-password   password
+
+# Set (or re-set) a configuration value
+$ pulumi config set db-host postgresql --secret
+```
+
 ### Deploy a stack
 
 Run `pulumi up` to create or update a stack.

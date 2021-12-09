@@ -6,8 +6,11 @@ import * as iam from "./iam";
 import * as cluster from "./cluster";
 import * as kafka from "./kafka";
 import * as postgresql from "./postgresql";
+import * as folio from "./folio";
+import * as util from "./util";
 
 import * as k8s from "@pulumi/kubernetes";
+import { FolioModule } from "./classes/FolioModule";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -62,46 +65,10 @@ cluster.deploy.awsCreateEksNodeGroup(folioNodeGroupArgs, folioCluster, folioInst
 
 // Configure the networking addons that we want.
 // See https://www.pulumi.com/registry/packages/aws/api-docs/eks/addon/
-cluster.deploy.awsAddOn("folio-vpc-cni-addon", "vpc-cni", tags, folioCluster);
+// TODO The commented out add ons are not deploying properly here.
+//cluster.deploy.awsAddOn("folio-vpc-cni-addon", "vpc-cni", tags, folioCluster);
 cluster.deploy.awsAddOn("folio-kube-proxy-addon", "kube-proxy", tags, folioCluster);
-cluster.deploy.awsAddOn("folio-coredns-addon", "coredns", tags, folioCluster);
-
-// This is just an example of a deployment that we can do. As we move forward
-// we would have one service and deployment for okapi, one for the stripes container,
-// and one for any additional containers that require special ports, like edgeconnexion.
-const appName = "test-nginx";
-const appLabels = { appClass: appName };
-new k8s.apps.v1.Deployment(`${appName}-dep`, {
-    metadata: { labels: appLabels },
-    spec: {
-        replicas: 2,
-        selector: { matchLabels: appLabels },
-        template: {
-            metadata: { labels: appLabels },
-            spec: {
-                containers: [{
-                    name: appName,
-                    image: "nginx",
-                    ports: [{ name: "http", containerPort: 80 }]
-                }],
-            }
-        }
-    },
-}, { provider: folioCluster.provider });
-
-// This deploys what is an ELB or "classic" load balancer.
-const service = new k8s.core.v1.Service(`${appName}-elb-svc`, {
-    metadata: { labels: appLabels },
-    spec: {
-        // This creates an AWS ELB for us.
-        type: "LoadBalancer",
-        ports: [{ port: 80, targetPort: "http" }],
-        selector: appLabels,
-    },
-}, { provider: folioCluster.provider });
-
-// Export the URL for the load balanced service.
-export const url = service.status.loadBalancer.ingress[0].hostname;
+//cluster.deploy.awsAddOn("folio-coredns-addon", "coredns", tags, folioCluster);
 
 // Export a few resulting fields to make them easy to use.
 export const vpcId = folioVpc.id;
@@ -112,9 +79,77 @@ export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
 export const kubeconfig = folioCluster.kubeconfig;
 
 // Create a namespace.
-// You must define the provider that you want to use for creating the namespace. 
+// You must define the provider that you want to use for creating the namespace.
 const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider: folioCluster.provider });
+
+// Export the namespace for us in other functions.
+export const folioNamespaceName = folioNamespace.metadata.name;
+
 // Deploy Kafka via a Helm Chart into the FOLIO namespace
-export const kafkaInstance = kafka.deployment.helm(folioCluster, folioNamespace);
-// Deploy PostgreSQL via a Helm Chart into the FOLIO namespace
-export const postgresqlInstance = postgresql.deployment.helm(folioCluster, folioNamespace);
+export const kafkaInstance = kafka.deploy.helm(folioCluster, folioNamespaceName);
+
+// Create a configMap for folio for certain non-secret environment variables that will be deployed.
+const appName = "folio";
+const appLabels = { appClass: appName };
+
+const configMapData = {
+    DB_PORT: "5432",
+    DB_DATABASE: "folio",
+    DB_QUERYTIMEOUT: "60000",
+    DB_CHARSET: "UTF-8",
+    DB_MAXPOOLSIZE: "5",
+    // TODO Add KAFKA_HOST, KAFKA_PORT
+};
+const configMap = folio.deploy.configMap("default-config", configMapData, appLabels, folioCluster, folioNamespace);
+
+// Create a secret for folio to store our environment variables that k8s will inject into each pod.
+// These secrets have been set in the stack using the pulumi command line.
+const config = new pulumi.Config();
+const dbHost = config.requireSecret("db-host");
+const dbAdminUser = config.requireSecret("db-admin-user");
+const dbAdminPassword = config.requireSecret("db-admin-password");
+const dbUserName = config.requireSecret("db-user-name");
+const dbUserPassword = config.requireSecret("db-user-password");
+var secretData = {
+    DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
+    DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
+    DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
+    // TODO It would appear that folio-helm wants this in this secret rather than the configMap.
+    DB_PORT: Buffer.from("5432").toString("base64"),
+    PG_ADMIN_USER: util.base64Encode(pulumi.interpolate`${dbAdminUser}`),
+    PG_ADMIN_USER_PASSWORD: util.base64Encode(pulumi.interpolate`${dbAdminPassword}`),
+    DB_DATABASE: Buffer.from("postgres").toString("base64"),
+    KAFKA_HOST: Buffer.from("kafka").toString("base64"),
+    KAFKA_PORT: Buffer.from("9092").toString("base64")
+};
+
+// TODO Add a conditional for this, it should not run every time.
+// Alternatively, update the script to handle a case where the DB and user already exist.
+export const postgresqlInstance = postgresql.deploy.helm(folioCluster,
+    folioNamespaceName,
+    dbAdminPassword);
+
+// Deploy the main secret which is used by modules to connect to the db. This
+// secret name is used extensively in folio-helm.
+folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
+
+const releaseFile = "./releases/R2-2021.json";
+const modules = folio.prepare.moduleList(releaseFile);
+
+// Get a reference to the okapi module.
+const okapi: FolioModule = util.getModuleByName("okapi", modules);
+
+// Deploy okapi first.
+const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster, folioNamespace);
+
+// Deploy the rest of the modules that we want.
+folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
+
+
+// TODO Determine if the Helm chart takes care of the following:
+// Create hazelcast service account
+// Create okapi pod service account
+// Create okapi service
+// Create hazelcast configmap
+// Create okapi deployment
+// Create okapi ingress
