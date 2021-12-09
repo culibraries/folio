@@ -1,6 +1,6 @@
 # Debugging container
 
-his is a container intended to be deployed to the FOLIO cluster to be used for debugging.
+This is a container intended to be deployed to the FOLIO cluster to be used for debugging.
 
 See the Dockerfile to see what it installs.
 
@@ -48,7 +48,7 @@ For more info see: https://kubernetes.io/docs/tasks/debug-application-cluster/ge
 
 ### Connecting to the PostgreSQL database
 
-[psql](https://www.postgresql.org/docs/9.2/app-psql.html) is on the container as well as the database connection information as environmental variables. 
+[psql](https://www.postgresql.org/docs/9.2/app-psql.html) is on the container as well as the database connection information as environmental variables.
 
 * Connect to the RDS cluster
 

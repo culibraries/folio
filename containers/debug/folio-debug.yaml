@@ -12,7 +12,7 @@ spec:
       - "3600"
     envFrom:
       - secretRef:
-          name: db-connect
-      - secretRef:
-          name: kafka-connect
+          name: db-connect-modules
+      # - secretRef:
+      #     name: kafka-connect
   restartPolicy: Always
