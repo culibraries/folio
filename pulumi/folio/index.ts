@@ -79,7 +79,7 @@ export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
 export const kubeconfig = folioCluster.kubeconfig;
 
 // Create a namespace.
-// You must define the provider that you want to use for creating the namespace. 
+// You must define the provider that you want to use for creating the namespace.
 const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider: folioCluster.provider });
 
 // Export the namespace for us in other functions.
@@ -127,7 +127,9 @@ export const postgresqlInstance = postgresql.deploy.helm(folioCluster,
                                                          folioNamespaceName,
                                                          dbAdminPassword);
 
-const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
+// Deploy the main secret which is used by modules to connect to the db. This
+// secret name is used extensively in folio-helm.
+folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
 
 const modulesToDeploy = [
     "okapi",
@@ -141,13 +143,15 @@ const release = "R2-2021";
 const moduleListPromise = folio.prepare.moduleList(modulesToDeploy, release);
 moduleListPromise.then(modules => {
     // Get a reference to the okapi module.
-    let okapi:FolioModule = util.getModuleByName("okapi", modules);
+    const okapi:FolioModule = util.getModuleByName("okapi", modules);
 
-    // Deploy okapi first.
+    // Deploy okapi first. Will also give it an ingress.
+    // TODO Maybe return a reference to this object and make subsequent operations
+    // dependent on the resource.
     folio.deploy.okapi(okapi, folioCluster, folioNamespace);
 
     // Deploy the rest of the modules that we want.
-    folio.deploy.modules(modules, folioCluster, folioNamespace);
+    //folio.deploy.modules(modules, folioCluster, folioNamespace);
 }).catch(err => {
     console.error(`Unable to create folio module list: ${err}`);
 });
