@@ -1,5 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
+import * as k8s from "@pulumi/kubernetes";
 
 import * as vpc from "./vpc"
 import * as iam from "./iam";
@@ -9,8 +10,8 @@ import * as postgresql from "./postgresql";
 import * as folio from "./folio";
 import * as util from "./util";
 
-import * as k8s from "@pulumi/kubernetes";
 import { FolioModule } from "./classes/FolioModule";
+import { FolioDeployment } from "./classes/FolioDeployment";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -85,13 +86,28 @@ const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider: folioC
 // Export the namespace for us in other functions.
 export const folioNamespaceName = folioNamespace.metadata.name;
 
+// Create an object to represent the FOLIO deployment.
+const release = "./releases/R2-2021.json";
+const tenant = "cubl";
+const okapiUrl = "http://okapi:9130";
+const loadRefData = false;
+const loadSampleData = false;
+const containerRepo = "folioorg";
+const folioDeployment = new FolioDeployment(tenant,
+    release,
+    loadRefData,
+    loadSampleData,
+    folioCluster,
+    folioNamespace,
+    okapiUrl,
+    containerRepo);
+
 // Deploy Kafka via a Helm Chart into the FOLIO namespace
-export const kafkaInstance = kafka.deploy.helm(folioCluster, folioNamespaceName);
+export const kafkaInstance = kafka.deploy.helm(folioDeployment);
 
 // Create a configMap for folio for certain non-secret environment variables that will be deployed.
 const appName = "folio";
 const appLabels = { appClass: appName };
-
 const configMapData = {
     DB_PORT: "5432",
     DB_DATABASE: "folio",
@@ -100,7 +116,7 @@ const configMapData = {
     DB_MAXPOOLSIZE: "5",
     // TODO Add KAFKA_HOST, KAFKA_PORT
 };
-const configMap = folio.deploy.configMap("default-config", configMapData, appLabels, folioCluster, folioNamespace);
+folio.deploy.configMap("default-config", configMapData, appLabels, folioDeployment);
 
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
@@ -125,26 +141,23 @@ var secretData = {
 
 // TODO Add a conditional for this, it should not run every time.
 // Alternatively, update the script to handle a case where the DB and user already exist.
-export const postgresqlInstance = postgresql.deploy.helm(folioCluster,
-    folioNamespaceName,
-    dbAdminPassword);
+export const postgresqlInstance = postgresql.deploy.helm(folioDeployment, dbAdminPassword);
 
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
-folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster, folioNamespace);
+folio.deploy.secret("db-connect-modules", secretData, appLabels, folioDeployment);
 
-const releaseFile = "./releases/R2-2021.json";
-const modules = folio.prepare.moduleList(releaseFile);
+// Prepare the list of modules to deploy.
+const modules = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
 // Deploy okapi first.
-const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster, folioNamespace);
+const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioDeployment);
 
-// Deploy the rest of the modules that we want.
-folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
-
+// Deploy the rest of the modules that we want. This excludes okapi.
+folio.deploy.modules(modules, folioDeployment, okapiRelease);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account

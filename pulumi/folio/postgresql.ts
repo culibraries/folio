@@ -2,17 +2,17 @@ import * as eks from "@pulumi/eks";
 import * as k8s from "@pulumi/kubernetes";
 import * as pulumi from "@pulumi/pulumi";
 import { config } from "process";
+import { FolioDeployment } from "./classes/FolioDeployment";
 
 // TODO Use a chart from a URL rather than a repo so that the user doesn't need the chart on their local machine.
 
 // Deploy PostgreSQL using a Helm chart.
 export module deploy {
-    export function helm(cluster: eks.Cluster,
-                         appNamespace: pulumi.Output<string>,
+    export function helm(fd: FolioDeployment,
                          adminPassword: pulumi.Output<string>) {
         const instance = new k8s.helm.v3.Chart("postgresql",
             {
-                namespace: appNamespace,
+                namespace: fd.namespace.id,
                 repo: "bitnami",
                 chart: "postgresql",
                 // Chart version is 10.13.9 which installs PostgreSQL v11.14.0.
@@ -21,7 +21,7 @@ export module deploy {
                 values: {
                     postgresqlPassword: adminPassword
                 }
-            }, { provider: cluster.provider });
+            }, { provider: fd.cluster.provider });
         return instance;
     }
 
