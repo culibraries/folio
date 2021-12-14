@@ -1,0 +1,2 @@
+
+{postJob.enabled: true, postJob.okapiUrl: http://okapi:9130, postJob.tenantId: cubl, postJob.sampleData: false,  postJob.referenceData: false}

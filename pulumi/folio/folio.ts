@@ -90,12 +90,14 @@ export module deploy {
                 repository: `${module.containerRepository}/${module.name}`
             },
 
-            service: {
-                type: "LoadBalancer",
-                // TODO Will probably want to make this 443.
-                port: 80,
-                containerPort: 9130
-            },
+            fullnameOverride: module.name,
+
+            // service: {
+            //     type: "LoadBalancer",
+            //     // TODO Will probably want to make this 443.
+            //     port: 80,
+            //     containerPort: 9130
+            // },
 
             // The postJob takes care of registering the module with okapi and the tenant.
             postJob: setPostJob(module)
@@ -124,6 +126,8 @@ export module deploy {
                     tag: module.version,
                     repository: `${module.containerRepository}/${module.name}`
                 },
+
+                fullnameOverride: module.name,
 
                 // The postJob takes care of registering the module with okapi and the tenant.
                 postJob: setPostJob(module)
@@ -158,13 +162,15 @@ export module deploy {
             name: module.name,
 
             chart: module.name,
-            // We don't specify the version. The latest chart version will be deployed.
-            // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
+
             repositoryOpts: {
                 repo: "https://folio-org.github.io/folio-helm/",
             },
 
             values: values
+
+            // We don't specify the chart version. The latest chart version will be deployed.
+            // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
         }, {
             provider: fd.cluster.provider,
 

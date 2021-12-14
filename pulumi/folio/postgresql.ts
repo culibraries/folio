@@ -44,7 +44,7 @@ export module deploy {
                         restartPolicy: "Never",
                     },
                 },
-                backoffLimit: 3,
+                backoffLimit: 1,
             },
         });
     }
