@@ -1,0 +1,9 @@
+# TODO Add some comments!
+- id: okapi-4.9.0
+  action: enable
+- id: mod-users-18.0.1
+  action: enable
+- id: mod-permissions-5.14.2
+  action: enable
+- id: mod-authtoken-2.8.0
+  action: enable

@@ -141,14 +141,14 @@ var secretData = {
 
 // TODO Add a conditional for this, it should not run every time.
 // Alternatively, update the script to handle a case where the DB and user already exist.
-//export const postgresqlInstance = postgresql.deploy.helm(folioDeployment, dbAdminPassword);
+export const postgresqlInstance = postgresql.deploy.helm(folioDeployment, dbAdminPassword);
 
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
 var secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioDeployment);
 
 // TODO This is necessary however it is still unclear which commands need to run. See comment in create-db.sh.
-//postgresql.deploy.createDatabase(secret, folioDeployment.namespace);
+postgresql.deploy.createDatabase(secret, folioDeployment.namespace);
 
 // Prepare the list of modules to deploy.
 // TODO This works. Commented out for testing.

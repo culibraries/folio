@@ -4,6 +4,7 @@ import { FolioDeployment } from "./classes/FolioDeployment";
 import * as k8s from "@pulumi/kubernetes";
 import { Resource } from "@pulumi/pulumi";
 import * as fs from 'fs';
+import * as YAML from 'yaml';
 
 export module prepare {
     /**
@@ -13,24 +14,16 @@ export module prepare {
     export function moduleList(fd: FolioDeployment): FolioModule[] {
         var folioModules: FolioModule[] = new Array<FolioModule>();
 
-        const releaseModules = getModulesForRelease(fd.releaseFilePath);
+        const releaseModules = modulesForRelease(fd.releaseFilePath);
         console.log(`Got ${releaseModules.length} modules from file: ${fd.releaseFilePath}`);
 
         for (const module of releaseModules) {
             console.log(`Got module: ${module.id}`);
 
-            const versionStart = module.id.lastIndexOf('-') + 1;
-            const versionEnd = module.id.length;
-            const moduleVersion = module.id.substring(versionStart, versionEnd);
-            console.log(`Got module version: ${moduleVersion}`);
+            const parsed = parseModuleNameAndId(module);
 
-            const nameStart = 0;
-            const nameEnd = module.id.lastIndexOf('-');
-            const moduleName = module.id.substring(nameStart, nameEnd);
-            console.log(`Got module name: ${moduleName}`);
-
-            const m = new FolioModule(moduleName,
-                moduleVersion,
+            const m = new FolioModule(parsed.name,
+                parsed.version,
                 true,
                 fd.tenantId,
                 fd.loadSampleData,
@@ -43,9 +36,23 @@ export module prepare {
         return folioModules;
     }
 
-    function getModulesForRelease(releaseFile: string): Array<any> {
+    export function parseModuleNameAndId(moduleId: string): any {
+        const versionStart = moduleId.lastIndexOf('-') + 1;
+        const versionEnd = moduleId.length;
+        const moduleVersion = moduleId.substring(versionStart, versionEnd);
+        console.log(`Got module version: ${moduleVersion}`);
+
+        const nameStart = 0;
+        const nameEnd = moduleId.lastIndexOf('-');
+        const moduleName = moduleId.substring(nameStart, nameEnd);
+        console.log(`Got module name: ${moduleName}`);
+
+        return { name: moduleName, version: moduleVersion};
+    }
+
+    export function modulesForRelease(releaseFile: string): Array<any> {
         const release  = fs.readFileSync(releaseFile, 'utf8');
-        return JSON.parse(release);
+        return YAML.parse(release);
     }
 }
 
