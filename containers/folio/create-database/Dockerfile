@@ -23,5 +23,8 @@ ENV DB_USERNAME='okapi'
 ENV DB_PASSWORD='okapi1234'
 ENV DB_HOST='database.host'
 
+# Give the script permission to run.
+RUN chmod +x /usr/local/bin/folio/create-db.sh
+
 # Execute the script on container runtime
 CMD ["/usr/local/bin/folio/create-db.sh"]

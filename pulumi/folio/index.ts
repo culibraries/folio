@@ -139,27 +139,25 @@ var secretData = {
     KAFKA_PORT: Buffer.from("9092").toString("base64")
 };
 
-// TODO Add a conditional for this, it should not run every time.
-// Alternatively, update the script to handle a case where the DB and user already exist.
-export const postgresqlInstance = postgresql.deploy.helm(folioDeployment, dbAdminPassword);
-
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
 var secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioDeployment);
 
+// TODO Add a conditional for this, it should not run every time.
+// Alternatively, update the script to handle a case where the DB and user already exist.
+export const inClusterPostgres = postgresql.deploy.helm(folioDeployment, dbAdminPassword);
+
 // TODO This is necessary however it is still unclear which commands need to run. See comment in create-db.sh.
-postgresql.deploy.createDatabase(secret, folioDeployment.namespace);
+postgresql.deploy.createInClusterDatabase(secret, folioDeployment.namespace, inClusterPostgres.ready);
 
 // Prepare the list of modules to deploy.
 // TODO This works. Commented out for testing.
 //const modules = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
-// TODO This works. Commented out for testing.
 //const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
 // Deploy okapi first.
-// TODO This works. Commented out for testing.
 //const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioDeployment);
 
 // Deploy the rest of the modules that we want. This excludes okapi.

@@ -1,7 +1,5 @@
 import { expect } from "chai";
 import { describe } from "mocha";
-import { FolioDeployment } from "./classes/FolioDeployment";
-import { FolioModule } from "./classes/FolioModule";
 import * as folio from "./folio";
 
 // To run these tests do `npm test` on the command line.
