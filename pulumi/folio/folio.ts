@@ -20,7 +20,7 @@ export module prepare {
         for (const module of releaseModules) {
             console.log(`Got module: ${module.id}`);
 
-            const parsed = parseModuleNameAndId(module);
+            const parsed = parseModuleNameAndId(module.id);
 
             const m = new FolioModule(parsed.name,
                 parsed.version,
@@ -47,7 +47,7 @@ export module prepare {
         const moduleName = moduleId.substring(nameStart, nameEnd);
         console.log(`Got module name: ${moduleName}`);
 
-        return { name: moduleName, version: moduleVersion};
+        return { name: moduleName, version: moduleVersion };
     }
 
     export function modulesForRelease(releaseFile: string): Array<any> {
@@ -87,9 +87,10 @@ export module deploy {
      * Deploy okapi along with a LoadBalancer service to handle external traffic.
      * @param cluster A reference to the cluster.
      * @param appNamespace A reference to the app namespace.
+     * @param dependsOn The resources that okapi depends on being live before deploying.
      * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(module: FolioModule, fd: FolioDeployment): k8s.helm.v3.Release {
+    export function okapi(module: FolioModule, fd: FolioDeployment, dependsOn: Resource[]): k8s.helm.v3.Release {
         const values = {
             // Get the image from the version associated with the release.
             image: {
@@ -99,6 +100,8 @@ export module deploy {
 
             fullnameOverride: module.name,
 
+            // TODO Turn this back on after figuring out how to secure it. It is known to work at port 80.
+            // For how to enable SSL see https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/.
             // service: {
             //     type: "LoadBalancer",
             //     // TODO Will probably want to make this 443.
@@ -110,21 +113,24 @@ export module deploy {
             postJob: setPostJob(module)
         }
 
-        return deployModuleWithHelmChart(module, fd, values);
+        return deployModuleWithHelmChart(module, fd, values, dependsOn);
     }
 
     /**
      * Deploys the provided list of folio modules. This should be used for any module
      * that requires a ClusterIp type of service (so not okapi, and not an edge module).
      * @param toDeploy The modules to deploy.
+     * @returns A list of the module resources.
      */
     export function modules(toDeploy: Array<FolioModule>,
         fd: FolioDeployment,
-        okapiRelease:  k8s.helm.v3.Release) {
+        okapiRelease:  k8s.helm.v3.Release): Resource[] {
         console.log("Removing okapi from list of modules since it should have already been deployed");
         toDeploy = toDeploy.filter(module => module.name !== "okapi");
 
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
+
+        const moduleReleases:Resource[] = [];
 
         for (const module of toDeploy) {
             const values = {
@@ -140,9 +146,51 @@ export module deploy {
                 postJob: setPostJob(module)
             }
 
-            const dependsOn:Resource[] = [ okapiRelease ];
-            deployModuleWithHelmChart(module, fd, values, dependsOn);
+            const moduleRelease = deployModuleWithHelmChart(module, fd, values, [ okapiRelease ]);
+            moduleReleases.push(moduleRelease);
         }
+
+        return moduleReleases;
+    }
+
+    /**
+     * Creates the superuser for a given FOLIO deployment. This requires at minimum the following
+     * modules: mod-authtoken, mod-users, mod-login, mod-permissions, mod-inventory-storage, mod-users-bl.
+     * @param secret The secret which contains all of the environment variables that the container
+     * requires. See https://github.com/folio-org/folio-helm/blob/master/docker/bootstrap-superuser/Dockerfile
+     * for those environment variables.
+     * @param appNamespace The namespace.
+     * @param dependsOn All modules that have been deployed. These deployments need to complete
+     * before running this since the modules need to be available to it.
+     * @returns A reference to the job resource.
+     */
+    export function bootstrapSuperuser(secret: k8s.core.v1.Secret,
+        appNamespace: k8s.core.v1.Namespace,
+        dependsOn?: Resource[]) {
+        return new k8s.batch.v1.Job("bootstrap-superuser", {
+            metadata: {
+                name: "bootstrap-superuser",
+                namespace: appNamespace.id,
+            },
+
+            spec: {
+                template: {
+                    spec: {
+                        containers: [{
+                            name: "bootstrap-superuser",
+                            image: "folioci/bootstrap-superuser",
+                            envFrom: [
+                                { secretRef: { name: secret.metadata.name } }
+                            ],
+                        }],
+                        restartPolicy: "Never",
+                    },
+                },
+                backoffLimit: 2
+            }
+        }, {
+            dependsOn: dependsOn
+        });
     }
 
     function setPostJob(m: FolioModule) {
@@ -162,10 +210,6 @@ export module deploy {
         return new k8s.helm.v3.Release(module.name, {
             namespace: fd.namespace.id,
 
-            // TODO Does setting this fix the release being named "release-<random string>" which is causing post
-            // job hooks to fail?
-            // It does, but it is not enough. The pod itself also needs to be named without random suffix.
-            // Getting "pods 'mod-authtoken not found'. Why does the post job care about the pod _name_?
             name: module.name,
 
             chart: module.name,
@@ -174,7 +218,7 @@ export module deploy {
                 repo: "https://folio-org.github.io/folio-helm/",
             },
 
-            values: values
+            values: values,
 
             // We don't specify the chart version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs

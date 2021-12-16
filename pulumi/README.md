@@ -243,18 +243,6 @@ error: Running program '/Users/jafu6031/repos/folio/pulumi/folio' failed with an
 ```
 This can mean that your local helm repo is out of data and doesn't have the latest charts. Try running `helm repo update`.
 
-## Connecting to postgres through psql
-
-Once the bitnami chart for postgres is deployed (see postgresql.ts) you can connect to the db like this:
-```
- psql -h postgresql -U postgres
-```
-
-When prompted for the admin password you can find it by doing this:
-```
-pulumi up --show-secrets
-```
-
 ## How to fully delete the database to start from scratch
 
 You can completely wipe out the db, by removing the deployment from the index.ts file, however the persistent volume will be stuck in the `Terminating` state. To get rid of this do:

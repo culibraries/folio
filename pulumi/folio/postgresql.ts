@@ -1,4 +1,3 @@
-import * as eks from "@pulumi/eks";
 import * as k8s from "@pulumi/kubernetes";
 import * as pulumi from "@pulumi/pulumi";
 import { CustomResource, Output } from "@pulumi/pulumi";
@@ -35,6 +34,7 @@ export module deploy {
                 name: "create-database",
                 namespace: appNamespace.id,
             },
+
             spec: {
                 template: {
                     spec: {
@@ -54,4 +54,5 @@ export module deploy {
             dependsOn: dependsOn
         });
     }
+
 }
