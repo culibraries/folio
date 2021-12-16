@@ -143,26 +143,25 @@ var secretData = {
 // secret name is used extensively in folio-helm.
 var secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioDeployment);
 
-// TODO Add a conditional for this, it should not run every time.
-// Alternatively, update the script to handle a case where the DB and user already exist.
+// This can run multiple times without causing trouble.
 export const inClusterPostgres = postgresql.deploy.helm(folioDeployment, dbAdminPassword);
 
-// TODO This is necessary however it is still unclear which commands need to run. See comment in create-db.sh.
+// This can run multiple times without causing trouble. It depends on the result of
+// all resources in the previous step being complete.
 postgresql.deploy.createInClusterDatabase(secret, folioDeployment.namespace, inClusterPostgres.ready);
 
 // Prepare the list of modules to deploy.
-// TODO This works. Commented out for testing.
-//const modules = folio.prepare.moduleList(folioDeployment);
+const modules = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
-//const okapi: FolioModule = util.getModuleByName("okapi", modules);
+const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
 // Deploy okapi first.
-//const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioDeployment);
+const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioDeployment);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
 // TODO This works. Commented out for testing. Order of module registration needs to be better understood.
-//folio.deploy.modules(modules, folioDeployment, okapiRelease);
+folio.deploy.modules(modules, folioDeployment, okapiRelease);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account

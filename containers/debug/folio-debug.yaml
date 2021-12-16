@@ -6,7 +6,7 @@ spec:
   containers:
   - name: folio-debug
     image: ghcr.io/culibraries/folio_debug:latest
-    imagePullPolicy: IfNotPresent
+    imagePullPolicy: Always
     command:
       - sleep
       - "3600"
