@@ -8,8 +8,12 @@ config:
   folio:db-admin-user:
     secure: v1:Iz//zCTWi/ULk5ti:QigreOvH+1F2dmZTYD3LJs+G2LH+5vnr
   folio:db-host:
-    secure: v1:P3FZhknOuUrNg5Wu:N0GszG+RZBzm3b3lsPwqz4hgcR8Ye4cVzqI=
+    secure: v1:gZ7eD9W7nbCb8Aly:jDRBiznbvBZ0rKpTAGBSGfycTE+OwFQ8aJnlAmvHlKeIs32AzQ==
   folio:db-user-name:
     secure: v1:ywND+z+UMV+hRcr6:oqbg60RaL0r+f8u19piI4kgPBGZc
   folio:db-user-password:
     secure: v1:Za4slujxop5reqlb:/AgAjKbGU8MVblCGKvlds23gS08KviH/YFGgG4BtNy40YVIF
+  folio:superuser-name:
+    secure: v1:HrzjbPVTBhV6QvOy:ZMIqcIZAVAO0hd3Q1tBv1kBtu/h4L4ICLJ4=
+  folio:superuser-password:
+    secure: v1:mE5gdgnQEj8Er5Jw:35jTWJW6VWXJprrGCtdUku2y+GP0CVu2fWYRhxVgapfwzReAJD+fbkTOPysj+NvOLWgSGmvPBM2kGjdsTJ7Chco9HitGCKm4dg==

@@ -1,6 +1,15 @@
-FROM alpine:latest
+FROM ubuntu:latest
 
-# bind-tools contains nslookup and dig and a lot of other stuff.
-# See https://pkgs.alpinelinux.org/contents?branch=edge&name=bind-tools&arch=x86&repo=main
-# for the full contents.
-RUN apk update && apk add curl nmap bind-tools postgresql-client
+# We need to run all this in non-interactive mode.
+ENV DEBIAN_FRONTEND noninteractive
+
+# Get the latest stuff.
+RUN apt-get update
+
+# Install the other stuff we care about.
+RUN apt-get install -y \
+    curl nmap dnsutils postgresql-client
+
+# NOTE to debug this container just start it using the interactive terminal or -it flag.
+# For example:
+# docker run -it  ghcr.io/culibraries/debug_container:latest
