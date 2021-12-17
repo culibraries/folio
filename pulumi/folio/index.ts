@@ -141,7 +141,7 @@ const okapi: FolioModule = util.getModuleByName("okapi", modules);
 // Create a reference to the stripes module,
 const stripes: FolioModule = {
     name: "stripes",
-    version: "2021.r2.1"
+    version: "2021.r2.2"
 }
 
 // Deploy okapi first.
