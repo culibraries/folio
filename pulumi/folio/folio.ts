@@ -5,6 +5,7 @@ import * as k8s from "@pulumi/kubernetes";
 import { Resource } from "@pulumi/pulumi";
 import * as fs from 'fs';
 import * as YAML from 'yaml';
+import { core } from "@pulumi/kubernetes/types/enums";
 
 export module prepare {
     /**
@@ -190,6 +191,42 @@ export module deploy {
             }
         }, {
             dependsOn: dependsOn
+        });
+    }
+
+    export function registerModule(m: FolioModule,
+        fd: FolioDeployment,
+        dependsOn?: Resource[]) {
+        return new k8s.batch.v1.Job(`register-module-${m.name}`, {
+            metadata: {
+                name: `register-module-${m.name}`,
+                namespace: fd.namespace.id
+            },
+
+            spec: {
+                template: {
+                    spec: {
+                        containers: [{
+                            name: `register-module-${m.name}`,
+                            image: "folioci/folio-okapi-registration",
+                            env: [
+                                { name: "OKAPI_URL", value: m.okapiUrl },
+                                { name: "MODULE_NAME", value: m.name },
+                                { name: "MODULE_VERSION", value: m.version },
+                                { name: "TENANT_ID", value: m.tenantId },
+                                { name: "SAMPLE_DATA", value: `${m.loadReferenceData}` },
+                                { name: "REF_DATA", value: `${m.loadSampleData}` }
+                            ],
+                        }],
+                        restartPolicy: "Never",
+                    },
+                },
+                backoffLimit: 1,
+            }
+        }, {
+            dependsOn: dependsOn,
+
+            deleteBeforeReplace: true
         });
     }
 

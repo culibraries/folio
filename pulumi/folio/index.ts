@@ -170,7 +170,7 @@ const dbCreateJob = postgresql.deploy.createInClusterDatabase
     (secret, folioDeployment.namespace, inClusterPostgres.ready);
 
 // Prepare the list of modules to deploy.
-const modules = folio.prepare.moduleList(folioDeployment);
+const modules:FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
@@ -181,6 +181,17 @@ const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioDeploym
 
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(modules, folioDeployment, okapiRelease);
+
+// TODO See if this works better than postJob.
+for (const module of modules) {
+    if (module.name !== "okapi") {
+        folio.deploy.registerModule(module, folioDeployment, moduleReleases);
+    }
+}
+
+// folio.deploy.registerModule
+// (new FolioModule("mod-z3950", "2.4.0", true, "cubl", false, false, folioDeployment.okapiUrl, ""),
+// folioDeployment, moduleReleases);
 
 // Bootstrap the superuser.
 //folio.deploy.bootstrapSuperuser(secret, folioNamespace, moduleReleases);
