@@ -1,11 +1,13 @@
+import * as pulumi from "@pulumi/pulumi";
+
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 
 import * as k8s from "@pulumi/kubernetes";
 import { Resource } from "@pulumi/pulumi";
+import { Config } from "@pulumi/pulumi";
 import * as fs from 'fs';
 import * as YAML from 'yaml';
-import { core } from "@pulumi/kubernetes/types/enums";
 
 export module prepare {
     /**
@@ -15,13 +17,13 @@ export module prepare {
     export function moduleList(fd: FolioDeployment): FolioModule[] {
         var folioModules: FolioModule[] = new Array<FolioModule>();
 
-        const releaseModules = modulesForRelease(fd.releaseFilePath);
-        console.log(`Got ${releaseModules.length} modules from file: ${fd.releaseFilePath}`);
+        const releaseModules = modulesForRelease(fd.deploymentConfigurationFilePath);
+        console.log(`Got ${releaseModules.length} modules from file: ${fd.deploymentConfigurationFilePath}`);
 
         for (const module of releaseModules) {
-            console.log(`Got module: ${module.id}`);
+            console.log(`Got module: ${module}`);
 
-            const parsed = parseModuleNameAndId(module.id);
+            const parsed = parseModuleNameAndId(module);
 
             const m = new FolioModule(parsed.name,
                 parsed.version,
@@ -51,9 +53,26 @@ export module prepare {
         return { name: moduleName, version: moduleVersion };
     }
 
-    export function modulesForRelease(releaseFile: string): Array<any> {
-        const release  = fs.readFileSync(releaseFile, 'utf8');
-        return YAML.parse(release);
+    export function modulesForRelease(deploymentConfigFilePath: string): Array<any> {
+        const release = fs.readFileSync(deploymentConfigFilePath, 'utf8');
+        return YAML.parse(release).modules;
+    }
+
+    export function shouldCreateSuperuser(deploymentConfigFilePath: string): boolean {
+        const release = fs.readFileSync(deploymentConfigFilePath, 'utf8');
+        let parsed: any = YAML.parse(release);
+        if (!parsed.hasOwnProperty("createSuperuser")) {
+            throw new Error("Deployment configuration file has no property createSuperuser");
+        }
+        return parsed.createSuperuser;
+    }
+
+    export function setCreateSuperuser(setTo: boolean, deploymentConfigFilePath: string) {
+        const release = fs.readFileSync(deploymentConfigFilePath, 'utf8');
+        let parsed: any = YAML.parse(release);
+        parsed.createSuperuser = setTo;
+
+        fs.writeFileSync(deploymentConfigFilePath, YAML.stringify(parsed));
     }
 }
 
@@ -110,8 +129,11 @@ export module deploy {
             //     containerPort: 9130
             // },
 
-            // The postJob takes care of registering the module with okapi and the tenant.
-            postJob: setPostJob(module)
+            // The postJob value in the folio-helm chart is very unreliable. We don't use it and
+            // instead create our own job that runs after all modules have been installed.
+            postJob: {
+                enabled: false
+            }
         }
 
         return deployModuleWithHelmChart(module, fd, values, dependsOn);
@@ -125,13 +147,13 @@ export module deploy {
      */
     export function modules(toDeploy: Array<FolioModule>,
         fd: FolioDeployment,
-        okapiRelease:  k8s.helm.v3.Release): Resource[] {
+        okapiRelease: k8s.helm.v3.Release): Resource[] {
         console.log("Removing okapi from list of modules since it should have already been deployed");
         toDeploy = toDeploy.filter(module => module.name !== "okapi");
 
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
 
-        const moduleReleases:Resource[] = [];
+        const moduleReleases: Resource[] = [];
 
         for (const module of toDeploy) {
             const values = {
@@ -143,11 +165,14 @@ export module deploy {
 
                 fullnameOverride: module.name,
 
-                // The postJob takes care of registering the module with okapi and the tenant.
-                postJob: setPostJob(module)
+                // The postJob value in the folio-helm chart is very unreliable. We don't use it and
+                // instead create our own job that runs after all modules have been installed.
+                postJob: {
+                    enabled: false
+                }
             }
 
-            const moduleRelease = deployModuleWithHelmChart(module, fd, values, [ okapiRelease ]);
+            const moduleRelease = deployModuleWithHelmChart(module, fd, values, [okapiRelease]);
             moduleReleases.push(moduleRelease);
         }
 
@@ -155,23 +180,71 @@ export module deploy {
     }
 
     /**
-     * Creates the superuser for a given FOLIO deployment. This requires at minimum the following
-     * modules: mod-authtoken, mod-users, mod-login, mod-permissions, mod-inventory-storage, mod-users-bl.
-     * @param secret The secret which contains all of the environment variables that the container
-     * requires. See https://github.com/folio-org/folio-helm/blob/master/docker/bootstrap-superuser/Dockerfile
-     * for those environment variables.
-     * @param appNamespace The namespace.
+     * Creates a superuser, applying all permissions, or only updates superuser's permissions
+     * for a given deployment.
+     *
+     * If the deployment configuration file has a value of true for createSuperuser
+     * this job will attempt to create that superuser. This should only be done if the
+     * superuser does not yet exist. And it should only be done once for a deployment.
+     * Attempting to create the superuser twice for a deployment will put the deployment
+     * in an unstable state and mod-users-bl, mod-authtoken and mod-login-saml will have
+     * to be redeployed if that mistake is made.
+     *
+     * This job will always update the superuser's permissions based on the modules
+     * installed so it should be run with the value of createSuperuser: false anytime
+     * a deployment's modules are changed.
+     *
+     * This function will attempt to set createSuperuser to false if it was true to
+     * not let it run more than once.
+     *
+     * @param fd A reference to the current folio deployment object.
      * @param dependsOn All modules that have been deployed. These deployments need to complete
      * before running this since the modules need to be available to it.
      * @returns A reference to the job resource.
      */
-    export function bootstrapSuperuser(secret: k8s.core.v1.Secret,
-        appNamespace: k8s.core.v1.Namespace,
+    export function createOrUpdateSuperuser(
+        superUserName: pulumi.Output<string>,
+        superUserPassword: pulumi.Output<string>,
+        fd: FolioDeployment,
         dependsOn?: Resource[]) {
+
+        const shouldCreateSuperuser: boolean =
+            prepare.shouldCreateSuperuser(fd.deploymentConfigurationFilePath);
+        console.log(`Deployment configuration file
+            ${fd.deploymentConfigurationFilePath} says create superuser is ${shouldCreateSuperuser}`);
+
+        // When FLAGS is empty the job will attempt to create the superuser.
+        // This should only be done once for a deployment so be careful about manually
+        // changing the value of createSuperuser in the deployment config file.
+        // See https://github.com/folio-org/folio-helm/blob/master/docker/bootstrap-superuser
+        // for how this all works.
+        let flags = ""; // This will create the superuser.
+        if (shouldCreateSuperuser === true) {
+            console.log(`Will attempt to create superuser for deployment:
+                ${fd.deploymentConfigurationFilePath}`);
+        } else {
+            console.log(`Not attempting to create superuser for deployment:
+                ${fd.deploymentConfigurationFilePath}`);
+            flags = "--onlyperms";
+        }
+
+        let env = [
+            { name: "ADMIN_USER", value: pulumi.interpolate`${superUserName}` },
+            { name: "ADMIN_PASSWORD", value: pulumi.interpolate`${superUserPassword}` },
+            { name: "OKAPI_URL", value: fd.okapiUrl },
+            { name: "TENANT_ID", value: fd.tenantId },
+            { name: "FLAGS", value: flags},
+        ];
+
+        // Considering that we have run this function, presumably it has succeeded. So we attempt
+        // to set the deployment configuration file createSuperuser value to false. This can
+        // be manually overridden on next run should it need to be.
+        prepare.setCreateSuperuser(false, fd.deploymentConfigurationFilePath);
+
         return new k8s.batch.v1.Job("bootstrap-superuser", {
             metadata: {
                 name: "bootstrap-superuser",
-                namespace: appNamespace.id,
+                namespace: fd.namespace.id,
             },
 
             spec: {
@@ -180,9 +253,7 @@ export module deploy {
                         containers: [{
                             name: "bootstrap-superuser",
                             image: "folioci/bootstrap-superuser",
-                            envFrom: [
-                                { secretRef: { name: secret.metadata.name } }
-                            ],
+                            env: env,
                         }],
                         restartPolicy: "Never",
                     },
@@ -190,11 +261,38 @@ export module deploy {
                 backoffLimit: 2
             }
         }, {
-            dependsOn: dependsOn
+            dependsOn: dependsOn,
+
+            deleteBeforeReplace: true
         });
     }
 
-    export function registerModule(m: FolioModule,
+    /**
+     * This registers the given modules with okapi for a folio deployment and tenant
+     * in that deployment.
+     * @param m The modules to register.
+     * @param fd The folio deployment.
+     * @param dependsOn The operations that must complete before this operation runs.
+     * @returns A reference to the batch job.
+     */
+    export function moduleRegistration(modules: FolioModule[],
+        fd: FolioDeployment,
+        dependsOn?: Resource[]): k8s.batch.v1.Job[] {
+
+        const registrationJobs: k8s.batch.v1.Job[] = [];
+
+        for (const module of modules) {
+            // We don't want to include okapi here since we're registering modules to it.
+            if (module.name !== "okapi") {
+                const registrationJob = registerModule(module, fd, dependsOn);
+                registrationJobs.push(registrationJob);
+            }
+        }
+
+        return registrationJobs;
+    }
+
+    function registerModule(m: FolioModule,
         fd: FolioDeployment,
         dependsOn?: Resource[]) {
         return new k8s.batch.v1.Job(`register-module-${m.name}`, {
@@ -228,16 +326,6 @@ export module deploy {
 
             deleteBeforeReplace: true
         });
-    }
-
-    function setPostJob(m: FolioModule) {
-        return {
-            enabled: m.enableModule,
-            tenantId: m.tenantId,
-            sampleData: m.loadSampleData,
-            referenceData: m.loadReferenceData,
-            okapiUrl: m.okapiUrl
-        }
     }
 
     function deployModuleWithHelmChart(module: FolioModule,

@@ -8,7 +8,7 @@ import * as eks from "@pulumi/eks";
 export class FolioDeployment {
     tenantId: string;
 
-    releaseFilePath: string;
+    deploymentConfigurationFilePath: string;
 
     loadReferenceData: boolean;
 
@@ -32,7 +32,7 @@ export class FolioDeployment {
         containerRepository: string
         ) {
             this.tenantId = tenantId;
-            this.releaseFilePath = releaseFilePath;
+            this.deploymentConfigurationFilePath = releaseFilePath;
             this.loadReferenceData = loadReferenceData;
             this.loadSampleData = loadSampleData;
             this.cluster = cluster;

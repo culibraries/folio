@@ -24,7 +24,7 @@ export module deploy {
         return instance;
     }
 
-    export function createInClusterDatabase(secret: k8s.core.v1.Secret,
+    export function inClusterDatabaseCreation(secret: k8s.core.v1.Secret,
         appNamespace: k8s.core.v1.Namespace,
 
         // See https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#depend-on-a-chart-resource

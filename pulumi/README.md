@@ -245,12 +245,21 @@ This can mean that your local helm repo is out of data and doesn't have the late
 
 ## How to fully delete the database to start from scratch
 
-You can completely wipe out the db, by removing the deployment from the index.ts file, however the persistent volume will be stuck in the `Terminating` state. To get rid of this do:
+Log into the database from psql and drop the folio database.
+
+## Working with Helm
+
+This deployment makes heavy use of helm. It is easy to have what helm knows about the deployment
+and what pulumi knows about it get out of sync. Usually this is easy to fix.
+
+If you see: ```error: cannot re-use a name that is still in use``` it likely means that helm still thinks
+that the given resource still exists even though it doesn't on the cluster.
+
+Pulumi will likely tell you what module is the culprit. You can remove it by doing:
+
+```shell
+helm delete <chart name> --namespace <the current namespace>
 ```
-kubectl get pv # To get names
-kubectl patch pv <pvname> -p '{"metadata":{"finalizers":null}}'
-```
-This is a well known issue without another solution. Reference: https://github.com/kubernetes/kubernetes/issues/69697
 
 ## References
 
