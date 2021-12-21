@@ -180,6 +180,8 @@ To clean up resources run `pulumi destroy`.
 
 This will destroy all the resources that are running. There's no need to do this on every run. As mentioned above pulumi will take care of applying patches when the code changes. The only reason to destroy is if you truly want to take down the AWS resources consumed by the stack.
 
+This operation may not always work as expected. When things go wrong do `pulumi destroy --help` to get a sense of your options. Refreshing the stack's state before destroying has been known to help. Also setting the debug flag is never a bad idea. To do both of these things try `pulumi destroy -r -d`.
+
 ## Notes
 
 ### Public and private subnets
@@ -235,7 +237,7 @@ Generally try not to rename too many resources at once or do massive changes to 
 
 Errors like `SignatureDoesNotMatch: The request signature we calculated does not match the signature you provided` may be related to your authentication status with AWS. Verify that you are **not** using the `aws sts` temporary credentials.
 
-### Helm Charts
+### Helm charts
 
 ```log
 error: Running program '/Users/jafu6031/repos/folio/pulumi/folio' failed with an unhandled exception:
@@ -243,13 +245,7 @@ error: Running program '/Users/jafu6031/repos/folio/pulumi/folio' failed with an
 ```
 This can mean that your local helm repo is out of data and doesn't have the latest charts. Try running `helm repo update`.
 
-## How to fully delete the database to start from scratch
-
-Log into the database from psql and drop the folio database.
-
-## Working with Helm
-
-### Common error messages
+#### Common error messages when working with helm
 This deployment makes heavy use of helm. It is easy to have what helm knows about the deployment and what pulumi knows about it get out of sync. Usually this is easy to fix.
 
 If you see: ```error: cannot re-use a name that is still in use``` it likely means that helm still thinks that the given resource still exists even though it doesn't on the cluster.
@@ -262,12 +258,17 @@ helm delete <chart name> --namespace <kubernetes namespace>
 
 And then re-run `pulumi up`. When synchronization between the actual deployment and pulumi state is an issue, running `pulumi refresh` will often help.
 
-### When helm deployments fail
+#### When helm deployments fail
 Often when first deploying something via helm via pulumi, the deployment will fail. If this is the case, you may consider commenting out the deployment in the `index.ts` file to remove the resource before trying to redeploy. But often pulumi will be unable to remove the resource that is in the failed state. If this is the case you can be comfortable removing the resource directly with helm:
 
 ```shell
 helm delete <name> --namespace <kubernetes namespace>
 ```
+
+## How to fully delete the database to start from scratch
+
+Log into the database from psql and drop the folio database.
+
 ## Working with jobs
 We are using kubernetes jobs in a number of places:
 * To run certain database operations
