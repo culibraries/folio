@@ -2,4 +2,3 @@ bin
 node_modules
 
 kubeconfig.json
-admin-login-response.json
