@@ -268,7 +268,7 @@ Often when first deploying something via helm via pulumi, the deployment will fa
 ```shell
 helm delete <name> --namespace <kubernetes namespace>
 ```
-### Working with jobs
+## Working with jobs
 We are using kubernetes jobs in a number of places:
 * To run certain database operations
 * To register modules with okapi
