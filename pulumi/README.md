@@ -249,17 +249,38 @@ Log into the database from psql and drop the folio database.
 
 ## Working with Helm
 
-This deployment makes heavy use of helm. It is easy to have what helm knows about the deployment
-and what pulumi knows about it get out of sync. Usually this is easy to fix.
+### Common error messages
+This deployment makes heavy use of helm. It is easy to have what helm knows about the deployment and what pulumi knows about it get out of sync. Usually this is easy to fix.
 
-If you see: ```error: cannot re-use a name that is still in use``` it likely means that helm still thinks
-that the given resource still exists even though it doesn't on the cluster.
+If you see: ```error: cannot re-use a name that is still in use``` it likely means that helm still thinks that the given resource still exists even though it doesn't on the cluster.
 
 Pulumi will likely tell you what module is the culprit. You can remove it by doing:
 
 ```shell
-helm delete <chart name> --namespace <the current namespace>
+helm delete <chart name> --namespace <kubernetes namespace>
 ```
+
+And then re-run `pulumi up`. When synchronization between the actual deployment and pulumi state is an issue, running `pulumi refresh` will often help.
+
+### When helm deployments fail
+Often when first deploying something via helm via pulumi, the deployment will fail. If this is the case, you may consider commenting out the deployment in the `index.ts` file to remove the resource before trying to redeploy. But often pulumi will be unable to remove the resource that is in the failed state. If this is the case you can be comfortable removing the resource directly with helm:
+
+```shell
+helm delete <name> --namespace <kubernetes namespace>
+```
+### Working with jobs
+We are using kubernetes jobs in a number of places:
+* To run certain database operations
+* To register modules with okapi
+* To create or update the superuser
+
+These jobs hang around after they are run. We could set `ttlSecondsAfterFinished` and have them disappear after a time. This has a number of downsides. One is that the logs for the job, which are present in the pod that is created as part of the job, also disappear. Diagnosing problems is much easier if the logs hang around.
+
+Jobs that have run and completed do not consume resources.
+
+Once a job has run successfully, as far as pulumi is concerned, it is done and won't be run again, unless it is removed. This makes jobs that should run on every change to the cluster somewhat hard to manage. Our job that creates or updates the superuser ideally would run after any new modules were added or removed. To make this happen, you have to manually remove the job either by commenting it out of index.ts, or deleting it with helm and removing it from the state with `pulumi state delete <urn>`.
+
+The idea of jobs that run every time `pulumi up` runs is a bit foreign to pulumi. As a workaround we may want to script our invocation of pulumi and do `pulumi destroy --target <job to destroy>` to first remove a resource before running `pulumi up`.
 
 ## References
 

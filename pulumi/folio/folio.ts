@@ -236,14 +236,11 @@ export module deploy {
             { name: "FLAGS", value: flags},
         ];
 
-        // Considering that we have run this function, presumably it has succeeded. So we attempt
-        // to set the deployment configuration file createSuperuser value to false. This can
-        // be manually overridden on next run should it need to be.
-        prepare.setCreateSuperuser(false, fd.deploymentConfigurationFilePath);
+        const jobName = "create-or-update-superuser";
 
-        return new k8s.batch.v1.Job("bootstrap-superuser", {
+        return new k8s.batch.v1.Job(jobName, {
             metadata: {
-                name: "bootstrap-superuser",
+                name: jobName,
                 namespace: fd.namespace.id,
             },
 
@@ -251,8 +248,8 @@ export module deploy {
                 template: {
                     spec: {
                         containers: [{
-                            name: "bootstrap-superuser",
-                            image: "folioci/bootstrap-superuser",
+                            name: jobName,
+                            image: `folioci/bootstrap-superuser`,
                             env: env,
                         }],
                         restartPolicy: "Never",
