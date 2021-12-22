@@ -102,10 +102,6 @@ const folioDeployment = new FolioDeployment(tenant,
     okapiUrl,
     containerRepo);
 
-// Deploy Kafka via a Helm Chart into the FOLIO namespace
-// TODO We need to make other resources dependent on this.
-export const kafkaInstance = kafka.deploy.helm(folioDeployment);
-
 // Create a configMap for folio for certain non-secret environment variables that will be deployed.
 const appName = "folio";
 const appLabels = { appClass: appName };
@@ -117,7 +113,9 @@ const configMapData = {
     DB_MAXPOOLSIZE: "5",
     // TODO Add KAFKA_HOST, KAFKA_PORT
 };
-const configMap = folio.deploy.configMap("default-config", configMapData, appLabels, folioDeployment);
+const configMap =
+    folio.deploy.configMap("default-config", configMapData, appLabels, folioDeployment,
+        [folioNamespace]);
 
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
@@ -140,6 +138,7 @@ var secretData = {
     DB_DATABASE: Buffer.from("postgres").toString("base64"),
     KAFKA_HOST: Buffer.from("kafka").toString("base64"),
     KAFKA_PORT: Buffer.from("9092").toString("base64"),
+    OKAPI_URL: Buffer.from(folioDeployment.okapiUrl).toString("base64"),
 
     // This is unique to folio-helm. It is required for many of the charts to run
     // (mod-inventory-storage) for example. The background is that it is used to distinguish
@@ -150,10 +149,16 @@ var secretData = {
 
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
-const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioDeployment);
+const secret =
+    folio.deploy.secret("db-connect-modules", secretData, appLabels, folioDeployment,
+        [folioNamespace]);
+
+// Deploy Kafka via a Helm Chart into the FOLIO namespace
+export const kafkaInstance = kafka.deploy.helm(folioDeployment, [folioNamespace]);
 
 // This can run multiple times without causing trouble.
-export const inClusterPostgres = postgresql.deploy.helm(folioDeployment, dbAdminPassword);
+export const inClusterPostgres = postgresql.deploy.helm(folioDeployment, dbAdminPassword,
+    [folioNamespace, secret]);
 
 // This can run multiple times without causing trouble. It depends on the result of
 // all resources in the previous step being complete.
@@ -161,14 +166,14 @@ const dbCreateJob = postgresql.deploy.inClusterDatabaseCreation
     (secret, folioDeployment.namespace, inClusterPostgres.ready);
 
 // Prepare the list of modules to deploy.
-const modules:FolioModule[] = folio.prepare.moduleList(folioDeployment);
+const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioDeployment,
-    [ secret, configMap, dbCreateJob ]);
+    [secret, configMap, dbCreateJob]);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(modules, folioDeployment, okapiRelease);
@@ -179,10 +184,10 @@ const registrationJobs = folio.deploy.moduleRegistration(modules, folioDeploymen
 // Create the superuser, applying all permissions to it if the deployment configuration
 // has createSuperuser set to true. If the deployment configuration has createSuperuser
 // set to false, this will apply all permissions to the superuser.
-const superUserName =  config.requireSecret("superuser-name");
+const superUserName = config.requireSecret("superuser-name");
 const superUserPassword = config.requireSecret("superuser-password");
-folio.deploy.createOrUpdateSuperuser
-    (superUserName, superUserPassword, folioDeployment, registrationJobs);
+// folio.deploy.createOrUpdateSuperuser
+//     (superUserName, superUserPassword, folioDeployment, registrationJobs);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account

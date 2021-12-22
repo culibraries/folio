@@ -1,11 +1,12 @@
 import * as k8s from "@pulumi/kubernetes";
+import { Resource } from "@pulumi/pulumi";
 import { FolioDeployment } from "./classes/FolioDeployment";
 
 // TODO Use a chart from a URL rather than a repo so that the user doesn't need the chart on their local machine.
 
 // Deploy Kafka using the Helm chart.
 export module deploy {
-    export function helm(fd: FolioDeployment) {
+    export function helm(fd: FolioDeployment, dependsOn?: Resource[]) {
         const instance = new k8s.helm.v3.Chart("kafka",
             {
                 namespace: fd.namespace.id,
@@ -18,7 +19,10 @@ export module deploy {
                 values: {
                     replicaCount: 3
                 },
-            }, { provider: fd.cluster.provider });
+            }, {
+                provider: fd.cluster.provider,
+                dependsOn: dependsOn
+            });
         return instance;
     }
 }

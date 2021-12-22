@@ -135,7 +135,7 @@ Run `pulumi up` to create or update a stack.
 
     ```sh
     aws iam list-roles
-    # In the response use `/folio-cluster-admin-role` to find the assoicated role and note the `Arn`
+    # In the response use `/folio-cluster-admin-role` to find the associated role and note the `Arn`
     ```
 
     Now assume the role:

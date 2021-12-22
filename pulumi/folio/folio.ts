@@ -5,7 +5,6 @@ import { FolioDeployment } from "./classes/FolioDeployment";
 
 import * as k8s from "@pulumi/kubernetes";
 import { Resource } from "@pulumi/pulumi";
-import { Config } from "@pulumi/pulumi";
 import * as fs from 'fs';
 import * as YAML from 'yaml';
 
@@ -77,7 +76,9 @@ export module prepare {
 }
 
 export module deploy {
-    export function configMap(name: string, data: any, labels: any, fd: FolioDeployment): k8s.core.v1.ConfigMap {
+    export function configMap(name: string,
+        data: any, labels: any, fd: FolioDeployment,
+        dependsOn?: Resource[]): k8s.core.v1.ConfigMap {
         return new k8s.core.v1.ConfigMap(name,
             {
                 metadata: {
@@ -87,10 +88,17 @@ export module deploy {
                 },
                 data: data
             },
-            { provider: fd.cluster.provider });
+            {
+                provider: fd.cluster.provider,
+                dependsOn: dependsOn
+            });
     }
 
-    export function secret(name: string, data: any, labels: any, fd: FolioDeployment): k8s.core.v1.Secret {
+    export function secret(name: string,
+        data: any,
+        labels: any,
+        fd: FolioDeployment,
+        dependsOn?: Resource[]): k8s.core.v1.Secret {
         return new k8s.core.v1.Secret(name,
             {
                 metadata: {
@@ -100,7 +108,10 @@ export module deploy {
                 },
                 data: data,
             },
-            { provider: fd.cluster.provider });
+            {
+                provider: fd.cluster.provider,
+                dependsOn: dependsOn
+            });
     }
 
     /**
