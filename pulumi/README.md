@@ -283,6 +283,17 @@ Once a job has run successfully, as far as pulumi is concerned, it is done and w
 
 The idea of jobs that run every time `pulumi up` runs is a bit foreign to pulumi. As a workaround we may want to script our invocation of pulumi and do `pulumi destroy --target <job to destroy>` to first remove a resource before running `pulumi up`.
 
+## In-cluster postgres
+We are currently deploying postgres in the cluster via a helm release. If you connect to the the container running postgres and look at the environment you will notice that the db hostname is `postgres-postgres-0`. This is not correct. The actual hostname that is visible to other cluster pods is `postgresql`. This is also the value of `DB_HOST` which is encoded in our `db-connect-modules` secret and available as when you view `pulumi config --show-secrets`.
+
+## Connecting to the cluster before it is exposed
+It is highly useful to be able to connect to okapi before it is exposed. Do this by port forwarding your localhost to okapi.
+
+```shell
+kubectl -n <namespace> port-forward <okapi pod name> 9000:9130
+```
+Then try: `curl http://localhost:9000/_/proxy/tenants/cubl/modules` to see what modules have been successfully enabled for the tenant.
+
 ## References
 
 * [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
