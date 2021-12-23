@@ -163,7 +163,7 @@ export const inClusterPostgres = postgresql.deploy.helm(folioDeployment, dbAdmin
 // This can run multiple times without causing trouble. It depends on the result of
 // all resources in the previous step being complete.
 const dbCreateJob = postgresql.deploy.inClusterDatabaseCreation
-    (secret, folioDeployment.namespace, inClusterPostgres.ready);
+    (secret, folioDeployment.namespace, [inClusterPostgres]);
 
 // Prepare the list of modules to deploy.
 const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
@@ -173,7 +173,7 @@ const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioDeployment,
-    [secret, configMap, dbCreateJob]);
+    [secret, configMap, kafkaInstance, inClusterPostgres, dbCreateJob]);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(modules, folioDeployment, okapiRelease);
@@ -186,8 +186,8 @@ const registrationJobs = folio.deploy.moduleRegistration(modules, folioDeploymen
 // set to false, this will apply all permissions to the superuser.
 const superUserName = config.requireSecret("superuser-name");
 const superUserPassword = config.requireSecret("superuser-password");
-// folio.deploy.createOrUpdateSuperuser
-//     (superUserName, superUserPassword, folioDeployment, registrationJobs);
+folio.deploy.createOrUpdateSuperuser
+    (superUserName, superUserPassword, folioDeployment, registrationJobs);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account

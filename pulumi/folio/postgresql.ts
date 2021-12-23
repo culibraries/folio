@@ -1,6 +1,6 @@
 import * as k8s from "@pulumi/kubernetes";
 import * as pulumi from "@pulumi/pulumi";
-import { CustomResource, Output, Resource } from "@pulumi/pulumi";
+import { Resource } from "@pulumi/pulumi";
 import { FolioDeployment } from "./classes/FolioDeployment";
 
 // TODO Use a chart from a URL rather than a repo so that the user doesn't need the chart on their local machine.
@@ -10,14 +10,14 @@ export module deploy {
     export function helm(fd: FolioDeployment,
                          adminPassword: pulumi.Output<string>,
                          dependsOn?: Resource[]) {
-        const instance = new k8s.helm.v3.Chart("postgresql-in-cluster",
+        const instance = new k8s.helm.v3.Release("postgresql-in-cluster",
             {
                 namespace: fd.namespace.id,
-                repo: "bitnami",
+                name: "postgresql",
                 chart: "postgresql",
                 // Chart version is 10.13.9 which installs PostgreSQL v11.14.0.
                 version: "10.13.9",
-                fetchOpts: { repo: "https://charts.bitnami.com/bitnami" },
+                repositoryOpts: { repo: "https://charts.bitnami.com/bitnami" },
                 values: {
                     postgresqlPassword: adminPassword
                 }
@@ -32,7 +32,7 @@ export module deploy {
         appNamespace: k8s.core.v1.Namespace,
 
         // See https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#depend-on-a-chart-resource
-        dependsOn?: Output<Resource[]>) {
+        dependsOn?: Resource[]) {
         return new k8s.batch.v1.Job("create-database", {
             metadata: {
                 name: "create-database",
@@ -55,7 +55,13 @@ export module deploy {
                 backoffLimit: 2,
             },
         }, {
-            dependsOn: dependsOn
+            dependsOn: dependsOn,
+
+            customTimeouts: {
+                create: "5m",
+                delete: "5m",
+                update: "5m"
+            }
         });
     }
 

@@ -144,6 +144,15 @@ export module deploy {
             // instead create our own job that runs after all modules have been installed.
             postJob: {
                 enabled: false
+            },
+
+            resources: {
+                limits: {
+                    memory: module.limitsMemory
+                },
+                requests: {
+                    memory: module.requestsMemory
+                }
             }
         }
 
@@ -180,6 +189,15 @@ export module deploy {
                 // instead create our own job that runs after all modules have been installed.
                 postJob: {
                     enabled: false
+                },
+
+                resources: {
+                    limits: {
+                        memory: module.limitsMemory
+                    },
+                    requests: {
+                        memory: module.requestsMemory
+                    }
                 }
             }
 
@@ -327,6 +345,9 @@ export module deploy {
                         restartPolicy: "Never",
                     },
                 },
+
+                // This job doesn't fail if some requests from the of the container script don't succeed
+                // so retrying makes no difference here.
                 backoffLimit: 1,
             }
         }, {
@@ -352,6 +373,19 @@ export module deploy {
             },
 
             values: values,
+
+            // This is the default, but bringing it to the surface here so that we know
+            // about this feature of pulumi helm releases. This is a very good thing
+            // as it lets us make other resources truly dependent on this release being
+            // complete.
+            skipAwait: false,
+
+            // 10 minutes. The default is 5 minutes. After this time the helm release will
+            // return as complete, so we have to be careful here to make sure we're waiting
+            // long enough. This timeout is a backstop if something has gone wrong. Otherwise
+            // pulumi knows how to wait for the release to be complete. See note on skipAwait
+            // above.
+            timeout: 600
 
             // We don't specify the chart version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
