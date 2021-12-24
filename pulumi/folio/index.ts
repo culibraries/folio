@@ -133,6 +133,20 @@ var secretData = {
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
     // TODO It would appear that folio-helm wants this in this secret rather than the configMap.
     DB_PORT: Buffer.from("5432").toString("base64"),
+
+    // TODO These three variables are present in the rancher envs, but they
+    // don't reach the pods because of code like this:
+    // https://github.com/folio-org/folio-helm/blob/ca437e194c2385867e5147d924664ac5dd8f06f0/mod-users/templates/deployment.yaml#L40
+    // However they may be quite important (especially the timeout one) considering
+    // the timeout errors that we are seeing. For the importance of this variable also see:
+    // https://github.com/folio-org/mod-permissions/blob/b0dee51ff94bfe8c3502fdc89c71d452b3889287/descriptors/ModuleDescriptor-template.json
+    // Postgres also has statement_timeout and lock_timeout both of which appear to be
+    // 0 in our deployment which I believe means they are not limited.
+    // See https://www.postgresql.org/docs/12/runtime-config-client.html.
+    DB_MAXPOOLSIZE: Buffer.from("5").toString("base64"),
+    DB_QUERYTIMEOUT: Buffer.from("60000").toString("base64"),
+    DB_CHARSET: Buffer.from("UTF-8").toString("base64"),
+
     PG_ADMIN_USER: util.base64Encode(pulumi.interpolate`${dbAdminUser}`),
     PG_ADMIN_USER_PASSWORD: util.base64Encode(pulumi.interpolate`${dbAdminPassword}`),
     DB_DATABASE: Buffer.from("postgres").toString("base64"),
@@ -179,15 +193,15 @@ const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioDeploym
 const moduleReleases = folio.deploy.modules(modules, folioDeployment, okapiRelease);
 
 // Register the modules with okapi.
-const registrationJobs = folio.deploy.moduleRegistration(modules, folioDeployment, moduleReleases);
+//const registrationJobs = folio.deploy.moduleRegistration(modules, folioDeployment, moduleReleases);
 
 // Create the superuser, applying all permissions to it if the deployment configuration
 // has createSuperuser set to true. If the deployment configuration has createSuperuser
 // set to false, this will apply all permissions to the superuser.
 const superUserName = config.requireSecret("superuser-name");
 const superUserPassword = config.requireSecret("superuser-password");
-folio.deploy.createOrUpdateSuperuser
-    (superUserName, superUserPassword, folioDeployment, registrationJobs);
+// folio.deploy.createOrUpdateSuperuser
+//     (superUserName, superUserPassword, folioDeployment, registrationJobs);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account

@@ -19,7 +19,10 @@ export module deploy {
                 version: "10.13.9",
                 repositoryOpts: { repo: "https://charts.bitnami.com/bitnami" },
                 values: {
-                    postgresqlPassword: adminPassword
+                    postgresqlPassword: adminPassword,
+                    postgresqlMaxConnections: "500",
+                    postgresqlPostgresConnectionLimit: "500",
+                    postgresqlDbUserConnectionLimit: "500"
                 }
             }, {
                 provider: fd.cluster.provider,
