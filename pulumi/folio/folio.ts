@@ -1,10 +1,12 @@
-import * as pulumi from "@pulumi/pulumi";
 
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 
+import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
+import * as eks from "@pulumi/eks";
 import { Resource } from "@pulumi/pulumi";
+
 import * as fs from 'fs';
 import * as YAML from 'yaml';
 
@@ -77,19 +79,21 @@ export module prepare {
 
 export module deploy {
     export function configMap(name: string,
-        data: any, labels: any, fd: FolioDeployment,
+        data: any, labels: any,
+        cluster: eks.Cluster,
+        namespace: k8s.core.v1.Namespace,
         dependsOn?: Resource[]): k8s.core.v1.ConfigMap {
         return new k8s.core.v1.ConfigMap(name,
             {
                 metadata: {
                     name: name,
                     labels: labels,
-                    namespace: fd.namespace.id,
+                    namespace: namespace.id,
                 },
                 data: data
             },
             {
-                provider: fd.cluster.provider,
+                provider: cluster.provider,
                 dependsOn: dependsOn
             });
     }
@@ -97,31 +101,34 @@ export module deploy {
     export function secret(name: string,
         data: any,
         labels: any,
-        fd: FolioDeployment,
+        cluster: eks.Cluster,
+        namespace: k8s.core.v1.Namespace,
         dependsOn?: Resource[]): k8s.core.v1.Secret {
         return new k8s.core.v1.Secret(name,
             {
                 metadata: {
                     name: name,
                     labels: labels,
-                    namespace: fd.namespace.id,
+                    namespace: namespace.id,
                 },
                 data: data,
             },
             {
-                provider: fd.cluster.provider,
+                provider: cluster.provider,
                 dependsOn: dependsOn
             });
     }
 
     /**
      * Deploy okapi along with a LoadBalancer service to handle external traffic.
-     * @param cluster A reference to the cluster.
-     * @param appNamespace A reference to the app namespace.
+     * @param module The module object for okapi.
+     * @param cluster A reference to the k8s cluster.
+     * @param namespace A reference to the k8s namespace.
      * @param dependsOn The resources that okapi depends on being live before deploying.
      * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(module: FolioModule, fd: FolioDeployment, dependsOn: Resource[]): k8s.helm.v3.Release {
+    export function okapi(module: FolioModule, cluster: eks.Cluster,
+        namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
         const values = {
             // Get the image from the version associated with the release.
             image: {
@@ -156,17 +163,20 @@ export module deploy {
             }
         }
 
-        return deployModuleWithHelmChart(module, fd, values, dependsOn);
+        return deployModuleWithHelmChart(module, cluster, namespace, values, dependsOn);
     }
 
     /**
      * Deploys the provided list of folio modules. This should be used for any module
      * that requires a ClusterIp type of service (so not okapi, and not an edge module).
+     * @param cluster A reference to the k8s cluster.
+     * @param namespace A reference to the k8s namespace.
      * @param toDeploy The modules to deploy.
      * @returns A list of the module resources.
      */
     export function modules(toDeploy: Array<FolioModule>,
-        fd: FolioDeployment,
+        cluster: eks.Cluster,
+        namespace: k8s.core.v1.Namespace,
         okapiRelease: k8s.helm.v3.Release): Resource[] {
         console.log("Removing okapi from list of modules since it should have already been deployed");
         toDeploy = toDeploy.filter(module => module.name !== "okapi");
@@ -201,7 +211,8 @@ export module deploy {
                 }
             }
 
-            const moduleRelease = deployModuleWithHelmChart(module, fd, values, [okapiRelease]);
+            const moduleRelease =
+                deployModuleWithHelmChart(module, cluster, namespace, values, [okapiRelease]);
             moduleReleases.push(moduleRelease);
         }
 
@@ -226,15 +237,20 @@ export module deploy {
      * This function will attempt to set createSuperuser to false if it was true to
      * not let it run more than once.
      *
+     * @param name The name for the job.
+     * @param superUserName The super user name.
+     * @param superUserPassword The superuser password.
      * @param fd A reference to the current folio deployment object.
      * @param dependsOn All modules that have been deployed. These deployments need to complete
      * before running this since the modules need to be available to it.
      * @returns A reference to the job resource.
      */
     export function createOrUpdateSuperuser(
+        name: string,
         superUserName: pulumi.Output<string>,
         superUserPassword: pulumi.Output<string>,
         fd: FolioDeployment,
+        namespace: k8s.core.v1.Namespace,
         dependsOn?: Resource[]) {
 
         const shouldCreateSuperuser: boolean =
@@ -258,26 +274,24 @@ export module deploy {
         }
 
         let env = [
-            { name: "ADMIN_USER", value: pulumi.interpolate`${superUserName}` },
-            { name: "ADMIN_PASSWORD", value: pulumi.interpolate`${superUserPassword}` },
+            { name: "ADMIN_USER", value: superUserName },
+            { name: "ADMIN_PASSWORD", value: superUserPassword },
             { name: "OKAPI_URL", value: fd.okapiUrl },
             { name: "TENANT_ID", value: fd.tenantId },
             { name: "FLAGS", value: flags},
         ];
 
-        const jobName = "create-or-update-superuser";
-
-        return new k8s.batch.v1.Job(jobName, {
+        return new k8s.batch.v1.Job(name, {
             metadata: {
-                name: jobName,
-                namespace: fd.namespace.id,
+                name: name,
+                namespace: namespace.id,
             },
 
             spec: {
                 template: {
                     spec: {
                         containers: [{
-                            name: jobName,
+                            name: name,
                             image: `folioci/bootstrap-superuser`,
                             env: env,
                         }],
@@ -296,21 +310,21 @@ export module deploy {
     /**
      * This registers the given modules with okapi for a folio deployment and tenant
      * in that deployment.
-     * @param m The modules to register.
-     * @param fd The folio deployment.
+     * @param modules The modules to register.
+     * @param namespace A reference to the k8s namespace.
      * @param dependsOn The operations that must complete before this operation runs.
      * @returns A reference to the batch job.
      */
     export function moduleRegistration(modules: FolioModule[],
-        fd: FolioDeployment,
-        dependsOn?: Resource[]): k8s.batch.v1.Job[] {
+        namespace: k8s.core.v1.Namespace,
+        dependsOn: Resource[]): Resource[] {
 
-        const registrationJobs: k8s.batch.v1.Job[] = [];
+        const registrationJobs: Resource[] = [...dependsOn];
 
         for (const module of modules) {
             // We don't want to include okapi here since we're registering modules to it.
             if (module.name !== "okapi") {
-                const registrationJob = registerModule(module, fd, dependsOn);
+                const registrationJob = registerModule(module, namespace, dependsOn);
                 registrationJobs.push(registrationJob);
             }
         }
@@ -319,12 +333,12 @@ export module deploy {
     }
 
     function registerModule(m: FolioModule,
-        fd: FolioDeployment,
+        namespace: k8s.core.v1.Namespace,
         dependsOn?: Resource[]) {
         return new k8s.batch.v1.Job(`register-module-${m.name}`, {
             metadata: {
                 name: `register-module-${m.name}`,
-                namespace: fd.namespace.id
+                namespace: namespace.id
             },
 
             spec: {
@@ -358,11 +372,12 @@ export module deploy {
     }
 
     function deployModuleWithHelmChart(module: FolioModule,
-        fd: FolioDeployment,
+        cluster: eks.Cluster,
+        namespace: k8s.core.v1.Namespace,
         values: object,
         dependsOn?: Resource[]): k8s.helm.v3.Release {
         return new k8s.helm.v3.Release(module.name, {
-            namespace: fd.namespace.id,
+            namespace: namespace.id,
 
             name: module.name,
 
@@ -390,7 +405,7 @@ export module deploy {
             // We don't specify the chart version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
         }, {
-            provider: fd.cluster.provider,
+            provider: cluster.provider,
 
             // Hoping this will trigger pods to be replaced.
             // TODO Determine what the right thing to do here is.

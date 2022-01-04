@@ -259,7 +259,7 @@ helm delete <chart name> --namespace <kubernetes namespace>
 And then re-run `pulumi up`. When synchronization between the actual deployment and pulumi state is an issue, running `pulumi refresh` will often help.
 
 #### When helm deployments fail
-Often when first deploying something via helm via pulumi, the deployment will fail. If this is the case, you may consider commenting out the deployment in the `index.ts` file to remove the resource before trying to redeploy. But often pulumi will be unable to remove the resource that is in the failed state. If this is the case you can be comfortable removing the resource directly with helm:
+Often when first deploying something via helm via pulumi, the deployment may fail. If this is the case, you may consider commenting out the deployment in the `index.ts` file to remove the resource before trying to redeploy. But often pulumi will be unable to remove the resource that is in the failed state. If this is the case you can be comfortable removing the resource directly with helm:
 
 ```shell
 helm delete <name> --namespace <kubernetes namespace>
@@ -295,6 +295,5 @@ kubectl -n <namespace> port-forward <okapi pod name> 9000:9130
 Then try: `curl http://localhost:9000/_/proxy/tenants/cubl/modules` to see what modules have been successfully enabled for the tenant.
 
 ## References
-
 * [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
 * [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)

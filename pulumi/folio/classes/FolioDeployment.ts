@@ -14,10 +14,6 @@ export class FolioDeployment {
 
     loadSampleData: boolean;
 
-    cluster: eks.Cluster;
-
-    namespace: k8s.core.v1.Namespace;
-
     okapiUrl: string;
 
     containerRepository: string;
@@ -26,17 +22,15 @@ export class FolioDeployment {
         releaseFilePath: string,
         loadReferenceData: boolean,
         loadSampleData: boolean,
-        cluster: eks.Cluster,
-        namespace: k8s.core.v1.Namespace,
         okapiUrl: string,
         containerRepository: string
         ) {
+            console.log("constructing FolioDeployment");
+
             this.tenantId = tenantId;
             this.deploymentConfigurationFilePath = releaseFilePath;
             this.loadReferenceData = loadReferenceData;
             this.loadSampleData = loadSampleData;
-            this.cluster = cluster;
-            this.namespace = namespace;
             this.okapiUrl = okapiUrl;
             this.containerRepository = containerRepository;
     }
