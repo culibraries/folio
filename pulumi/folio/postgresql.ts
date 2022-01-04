@@ -4,6 +4,7 @@ import * as k8s from "@pulumi/kubernetes";
 import * as eks from "@pulumi/eks";
 
 // Deploy PostgreSQL using a Helm chart.
+
 export module deploy {
     export function helm(name: string,
                          cluster: eks.Cluster,
@@ -26,6 +27,7 @@ export module deploy {
                 }
             }, {
                 provider: cluster.provider,
+
                 dependsOn: dependsOn
             });
         return instance;
@@ -34,6 +36,7 @@ export module deploy {
     export function inClusterDatabaseCreation(
         name: string,
         namespace: k8s.core.v1.Namespace,
+        cluster: eks.Cluster,
 
         pgAdminUser: Output<string>,
         pgAdminPassword: Output<string>,
@@ -71,6 +74,8 @@ export module deploy {
                 backoffLimit: 5,
             },
         }, {
+            provider: cluster.provider,
+
             dependsOn: dependsOn,
 
             deleteBeforeReplace: true,

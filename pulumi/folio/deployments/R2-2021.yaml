@@ -1,4 +1,4 @@
-createSuperuser: true
+createSuperuser: false
 modules:
   - mod-finance-storage-7.1.1
   - mod-orders-storage-13.0.4

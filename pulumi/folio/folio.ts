@@ -4,6 +4,8 @@ import { FolioDeployment } from "./classes/FolioDeployment";
 
 import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
+
+import * as input from "@pulumi/kubernetes/types/input";
 import * as eks from "@pulumi/eks";
 import { Resource } from "@pulumi/pulumi";
 
@@ -74,6 +76,35 @@ export module prepare {
         parsed.createSuperuser = setTo;
 
         fs.writeFileSync(deploymentConfigFilePath, YAML.stringify(parsed));
+    }
+
+    export function moduleRegistrationInitContainers(modules: FolioModule[]): input.core.v1.Container[] {
+
+        var initContainers: input.core.v1.Container[] = [];
+
+        for (const module of modules) {
+            // We don't want to include okapi here since we're registering modules to it.
+            if (module.name !== "okapi") {
+                initContainers.push(createInitContainerForModule(module));
+            }
+        }
+
+        return initContainers;
+    }
+
+    function createInitContainerForModule(m: FolioModule): input.core.v1.Container {
+        return {
+            name: `register-module-${m.name}`,
+            image: "folioci/folio-okapi-registration",
+            env: [
+                { name: "OKAPI_URL", value: m.okapiUrl },
+                { name: "MODULE_NAME", value: m.name },
+                { name: "MODULE_VERSION", value: m.version },
+                { name: "TENANT_ID", value: m.tenantId },
+                { name: "SAMPLE_DATA", value: `${m.loadReferenceData}` },
+                { name: "REF_DATA", value: `${m.loadSampleData}` }
+            ],
+        };
     }
 }
 
@@ -220,8 +251,10 @@ export module deploy {
     }
 
     /**
-     * Creates a superuser, applying all permissions, or only updates superuser's permissions
-     * for a given deployment.
+     * Registers modules for our tenant to okapi, and after each module registration runs
+     * in sequence, creates a superuser, if one needs to be created, applying all permissions,
+     * or if a superuser already exists, only updates superuser's permissions
+     * for the modules deployed.
      *
      * If the deployment configuration file has a value of true for createSuperuser
      * this job will attempt to create that superuser. This should only be done if the
@@ -241,16 +274,21 @@ export module deploy {
      * @param superUserName The super user name.
      * @param superUserPassword The superuser password.
      * @param fd A reference to the current folio deployment object.
+     * @param namespace A reference to the k8s namespace.
+     * @param initContainers A list of container objects which must run successfully before
+     * bootstrapping the superuser.
      * @param dependsOn All modules that have been deployed. These deployments need to complete
      * before running this since the modules need to be available to it.
      * @returns A reference to the job resource.
      */
-    export function createOrUpdateSuperuser(
+    export function registerModulesAndBootsrapSuperuser(
         name: string,
         superUserName: pulumi.Output<string>,
         superUserPassword: pulumi.Output<string>,
         fd: FolioDeployment,
         namespace: k8s.core.v1.Namespace,
+        cluster: eks.Cluster,
+        initContainers: input.core.v1.Container[],
         dependsOn?: Resource[]) {
 
         const shouldCreateSuperuser: boolean =
@@ -278,7 +316,7 @@ export module deploy {
             { name: "ADMIN_PASSWORD", value: superUserPassword },
             { name: "OKAPI_URL", value: fd.okapiUrl },
             { name: "TENANT_ID", value: fd.tenantId },
-            { name: "FLAGS", value: flags},
+            { name: "FLAGS", value: flags },
         ];
 
         return new k8s.batch.v1.Job(name, {
@@ -290,81 +328,24 @@ export module deploy {
             spec: {
                 template: {
                     spec: {
+                        // These jobs will run sequentially and before the bootstrap superuser job.
+                        initContainers: initContainers,
+
+                        // This is what runs at the end.
                         containers: [{
                             name: name,
                             image: `folioci/bootstrap-superuser`,
                             env: env,
                         }],
+
                         restartPolicy: "Never",
                     },
                 },
                 backoffLimit: 2
             }
         }, {
-            dependsOn: dependsOn,
+            provider: cluster.provider,
 
-            deleteBeforeReplace: true
-        });
-    }
-
-    /**
-     * This registers the given modules with okapi for a folio deployment and tenant
-     * in that deployment.
-     * @param modules The modules to register.
-     * @param namespace A reference to the k8s namespace.
-     * @param dependsOn The operations that must complete before this operation runs.
-     * @returns A reference to the batch job.
-     */
-    export function moduleRegistration(modules: FolioModule[],
-        namespace: k8s.core.v1.Namespace,
-        dependsOn: Resource[]): Resource[] {
-
-        const registrationJobs: Resource[] = [...dependsOn];
-
-        for (const module of modules) {
-            // We don't want to include okapi here since we're registering modules to it.
-            if (module.name !== "okapi") {
-                const registrationJob = registerModule(module, namespace, dependsOn);
-                registrationJobs.push(registrationJob);
-            }
-        }
-
-        return registrationJobs;
-    }
-
-    function registerModule(m: FolioModule,
-        namespace: k8s.core.v1.Namespace,
-        dependsOn?: Resource[]) {
-        return new k8s.batch.v1.Job(`register-module-${m.name}`, {
-            metadata: {
-                name: `register-module-${m.name}`,
-                namespace: namespace.id
-            },
-
-            spec: {
-                template: {
-                    spec: {
-                        containers: [{
-                            name: `register-module-${m.name}`,
-                            image: "folioci/folio-okapi-registration",
-                            env: [
-                                { name: "OKAPI_URL", value: m.okapiUrl },
-                                { name: "MODULE_NAME", value: m.name },
-                                { name: "MODULE_VERSION", value: m.version },
-                                { name: "TENANT_ID", value: m.tenantId },
-                                { name: "SAMPLE_DATA", value: `${m.loadReferenceData}` },
-                                { name: "REF_DATA", value: `${m.loadSampleData}` }
-                            ],
-                        }],
-                        restartPolicy: "Never",
-                    },
-                },
-
-                // This job doesn't fail if some requests from the of the container script don't succeed
-                // so retrying makes no difference here.
-                backoffLimit: 1,
-            }
-        }, {
             dependsOn: dependsOn,
 
             deleteBeforeReplace: true

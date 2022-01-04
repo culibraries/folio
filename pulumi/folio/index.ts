@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as k8s from "@pulumi/kubernetes";
+import * as input from "@pulumi/kubernetes/types/input";
 
 import * as vpc from "./vpc"
 import * as iam from "./iam";
@@ -177,6 +178,7 @@ export const inClusterPostgres = postgresql.deploy.helm("in-cluster-postgres", f
 const dbCreateJob = postgresql.deploy.inClusterDatabaseCreation
     ("create-database",
      folioNamespace,
+     folioCluster,
      pulumi.interpolate`${dbAdminUser}`,
      pulumi.interpolate`${dbAdminPassword}`,
      pulumi.interpolate`${dbUserName}`,
@@ -198,20 +200,26 @@ const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
 
-// Register the modules with okapi.
-const registrationJobs = folio.deploy.moduleRegistration(modules, folioNamespace, moduleReleases);
+// Prepare a list of containers which will perform the module registration in sequence.
+const registrationInitContainers: input.core.v1.Container[] =
+    folio.prepare.moduleRegistrationInitContainers(modules);
 
-// Create the superuser, applying all permissions to it if the deployment configuration
+// Run the module registration containers as init containers for the final create or
+// update super user job. This final job will attempt to create the
+// the superuser, applying all permissions to it if the deployment configuration
 // has createSuperuser set to true. If the deployment configuration has createSuperuser
 // set to false, this will apply all permissions to the superuser.
-// const superUserName = config.requireSecret("superuser-name");
-// const superUserPassword = config.requireSecret("superuser-password");
-// folio.deploy.createOrUpdateSuperuser
-//     ("create-or-update-superuser",
-//     pulumi.interpolate`${superUserName}`,
-//     pulumi.interpolate`${superUserPassword}`,
-//     folioDeployment,
-//     folioNamespace, registrationJobs);
+const superUserName = config.requireSecret("superuser-name");
+const superUserPassword = config.requireSecret("superuser-password");
+folio.deploy.registerModulesAndBootsrapSuperuser
+    ("mod-reg-and-bootstrap-superuser",
+    pulumi.interpolate`${superUserName}`,
+    pulumi.interpolate`${superUserPassword}`,
+    folioDeployment,
+    folioNamespace,
+    folioCluster,
+    registrationInitContainers,
+    moduleReleases);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account
