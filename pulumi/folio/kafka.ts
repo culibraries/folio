@@ -1,24 +1,31 @@
 import * as k8s from "@pulumi/kubernetes";
-import { FolioDeployment } from "./classes/FolioDeployment";
+import * as eks from "@pulumi/eks";
 
-// TODO Use a chart from a URL rather than a repo so that the user doesn't need the chart on their local machine.
+import { Resource } from "@pulumi/pulumi";
 
 // Deploy Kafka using the Helm chart.
 export module deploy {
-    export function helm(fd: FolioDeployment) {
-        const instance = new k8s.helm.v3.Chart("kafka",
+    export function helm(
+        name: string,
+        cluster: eks.Cluster,
+        namespace: k8s.core.v1.Namespace,
+        dependsOn?: Resource[]) {
+        const instance = new k8s.helm.v3.Release(name,
             {
-                namespace: fd.namespace.id,
-                repo: "bitnami",
+                namespace: namespace.id,
+                name: name,
                 chart: "kafka",
                 // Chart version is 14.4.3 which installs Kafka v2.8.1.
                 version: "14.4.3",
-                fetchOpts: { repo: "https://charts.bitnami.com/bitnami" },
+                repositoryOpts: { repo: "https://charts.bitnami.com/bitnami" },
                 // See other chart options here https://artifacthub.io/packages/helm/bitnami/kafka
                 values: {
                     replicaCount: 3
                 },
-            }, { provider: fd.cluster.provider });
+            }, {
+                provider: cluster.provider,
+                dependsOn: dependsOn
+            });
         return instance;
     }
 }
