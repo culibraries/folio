@@ -253,35 +253,41 @@ export module deploy {
     /**
      * Registers modules for our tenant to okapi, and after each module registration runs
      * in sequence, creates a superuser, if one needs to be created, applying all permissions,
-     * or if a superuser already exists, only updates superuser's permissions
-     * for the modules deployed.
+     * or if a superuser already exists, only updates superuser's permissions for the
+     * modules are deployed. Whether or not to create the superuser or just update the
+     * permissions is controlled by the createSuperuser property in the deployment
+     * configuration yaml file.
      *
      * If the deployment configuration file has a value of true for createSuperuser
      * this job will attempt to create that superuser. This should only be done if the
      * superuser does not yet exist. And it should only be done once for a deployment.
      * Attempting to create the superuser twice for a deployment will put the deployment
      * in an unstable state and mod-users-bl, mod-authtoken and mod-login-saml will have
-     * to be redeployed if that mistake is made.
+     * to be redeployed (removed and re-added) if that mistake is made. This can be done by
+     * commenting these modules out of the config file, running pulumi up, and commenting
+     * them in again and running pulumi up again.
      *
      * This job will always update the superuser's permissions based on the modules
      * installed so it should be run with the value of createSuperuser: false anytime
      * a deployment's modules are changed.
      *
-     * This function will attempt to set createSuperuser to false if it was true to
-     * not let it run more than once.
+     * Note: changing a module's version is not the kind of change this function can handle.
+     * That's _upgrading a module_, and requires a different process. The only thing this script
+     * can handle is telling okapi about a new module _added_ to the stack.
      *
      * @param name The name for the job.
      * @param superUserName The super user name.
      * @param superUserPassword The superuser password.
      * @param fd A reference to the current folio deployment object.
      * @param namespace A reference to the k8s namespace.
+     * @param cluster A reference to the k8s cluster.
      * @param initContainers A list of container objects which must run successfully before
      * bootstrapping the superuser.
      * @param dependsOn All modules that have been deployed. These deployments need to complete
      * before running this since the modules need to be available to it.
      * @returns A reference to the job resource.
      */
-    export function registerModulesAndBootsrapSuperuser(
+    export function registerModulesAndBootstrapSuperuser(
         name: string,
         superUserName: pulumi.Output<string>,
         superUserPassword: pulumi.Output<string>,
@@ -388,9 +394,9 @@ export module deploy {
         }, {
             provider: cluster.provider,
 
-            // Hoping this will trigger pods to be replaced.
-            // TODO Determine what the right thing to do here is.
-            replaceOnChanges: ["*"],
+            // This allows for any changes to the module's helm-chart params to result in a replacing
+            // change to the pod.
+            deleteBeforeReplace: true,
 
             dependsOn: dependsOn
         });

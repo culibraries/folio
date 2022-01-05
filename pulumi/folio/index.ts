@@ -130,7 +130,8 @@ var secretData = {
     DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
-    // TODO It would appear that folio-helm wants this in this secret rather than the configMap.
+
+    // It would appear that folio-helm wants this in this secret rather than the configMap.
     DB_PORT: Buffer.from("5432").toString("base64"),
 
     // TODO These three variables are present in the rancher envs, but they
@@ -153,9 +154,14 @@ var secretData = {
     KAFKA_PORT: Buffer.from("9092").toString("base64"),
     OKAPI_URL: Buffer.from(folioDeployment.okapiUrl).toString("base64"),
 
+    // These two vars are required for for mod-agreements and mod-licenses.
+    // For background see https://github.com/culibraries/folio-ansible/issues/22
+    OKAPI_SERVCE_PORT: Buffer.from("9130").toString("base64"),
+    OKAPI_SERVICE_HOST: Buffer.from("okapi").toString("base64"),
+
     // This is unique to folio-helm. It is required for many of the charts to run
     // (mod-inventory-storage) for example. The background is that it is used to distinguish
-    // between the various development team's k8s (rancher) deployments. In our case that
+    // between the various development teams' k8s (rancher) deployments. In our case that
     // isn't relevant so we just set it to "cu".
     ENV: Buffer.from("cu").toString("base64"),
 };
@@ -165,7 +171,13 @@ var secretData = {
 const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster,
     folioNamespace, [folioNamespace]);
 
-// Deploy Kafka via a Helm Chart into the FOLIO namespace
+// NOTE We are currently using pulumi's helm Release rather than helm Chart.
+// See: https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/.
+// Although using Release produces a warning when running pululmi up, Release is much
+// more robust than Chart, especially when it comes to waiting on the deployment
+// and chaining to subsequent operations via dependsOn.
+
+// Deploy Kafka via a Helm Chart into the FOLIO namespace.
 export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNamespace,
     [folioNamespace]);
 
@@ -204,14 +216,14 @@ const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespac
 const registrationInitContainers: input.core.v1.Container[] =
     folio.prepare.moduleRegistrationInitContainers(modules);
 
-// Run the module registration containers as init containers for the final create or
+// Run the module registration containers as init containers for the final create/
 // update super user job. This final job will attempt to create the
 // the superuser, applying all permissions to it if the deployment configuration
 // has createSuperuser set to true. If the deployment configuration has createSuperuser
 // set to false, this will apply all permissions to the superuser.
 const superUserName = config.requireSecret("superuser-name");
 const superUserPassword = config.requireSecret("superuser-password");
-folio.deploy.registerModulesAndBootsrapSuperuser
+folio.deploy.registerModulesAndBootstrapSuperuser
     ("mod-reg-and-bootstrap-superuser",
     pulumi.interpolate`${superUserName}`,
     pulumi.interpolate`${superUserPassword}`,
