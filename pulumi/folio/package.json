@@ -8,6 +8,7 @@
         "@pulumi/awsx": "^0.30.0",
         "@pulumi/eks": "^0.35.0",
         "@pulumi/kubernetes": "^3.10.1",
+        "@pulumi/postgresql": "^3.3.0",
         "@pulumi/pulumi": "^3.0.0",
         "@types/chai": "^4.2.22",
         "@types/mocha": "^9.0.0",

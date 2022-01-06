@@ -14,6 +14,10 @@ import * as util from "./util";
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 
+import * as pulumiPostgres from "@pulumi/postgresql";
+import { timeLog } from "console";
+import { superuser } from "@pulumi/postgresql/config";
+
 // Set some default tags which we will add to when defining resources.
 const tags = {
     "Owner": "CTA",
@@ -25,6 +29,7 @@ const tags = {
 
 // Create our VPC and security group.
 const folioVpc = vpc.deploy.awsVpc("folio-vpc", tags, 2, 1);
+
 const folioSecurityGroup = vpc.deploy.awsSecurityGroup("folio-security-group", tags, folioVpc.id);
 
 // Create our own IAM role and profile which we can bind into the cluster's
@@ -74,6 +79,7 @@ cluster.deploy.awsAddOn("folio-kube-proxy-addon", "kube-proxy", tags, folioClust
 
 // Export a few resulting fields to make them easy to use.
 export const vpcId = folioVpc.id;
+export const folioSecurityGroupId = folioSecurityGroup.id;
 export const vpcPrivateSubnetIds = folioVpc.privateSubnetIds;
 export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
 
@@ -104,72 +110,160 @@ const folioDeployment = new FolioDeployment(tenant,
 // Create a configMap for folio for certain non-secret environment variables that will be deployed.
 const appName = "folio";
 const appLabels = { appClass: appName };
-const configMapData = {
-    DB_PORT: "5432",
-    DB_DATABASE: "folio",
-    DB_QUERYTIMEOUT: "60000",
-    DB_CHARSET: "UTF-8",
-    DB_MAXPOOLSIZE: "5",
-    // TODO Add KAFKA_HOST, KAFKA_PORT
-};
-const configMap = folio.deploy.configMap("default-config",
-    configMapData, appLabels, folioCluster, folioNamespace,
-    [folioNamespace]);
 
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
 const config = new pulumi.Config();
 
-const dbHost = config.requireSecret("db-host");
+//const dbHost = config.requireSecret("db-host");
 const dbAdminUser = config.requireSecret("db-admin-user");
 const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
 const dbUserPassword = config.requireSecret("db-user-password");
 
-var secretData = {
-    DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
-    DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
-    DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
+//// TODO Now that this has been created I'm unable to run this again. Get error:
+//// DB Cluster already exists.
+const dbSubnet = new aws.rds.SubnetGroup("folio-db-subnet", {
+    subnetIds: folioVpc.privateSubnetIds,
+})
+export const pgFinalSnapshotId = "folio-pg-cluster-final-snapshot";
+export const pgClusterId = "folio-pg-cluster";
+const clusterName = "folio-pg";
+const pgCluster = new aws.rds.Cluster(clusterName, {
+    // NOTE: Be careful with this list. It seems to error out if 3 items aren't provided on subsequent runs
+    // doing a replace because of a diff on availabilityZones. The error is:
+    // error creating RDS cluster: DBClusterAlreadyExistsFault: DB Cluster already exists.
+    availabilityZones: [
+        "us-west-2a",
+        "us-west-2b",
+        "us-west-2c"
+    ],
+    backupRetentionPeriod: 5,
+    clusterIdentifier: pgClusterId,
+    databaseName: "postgres",
+    engine: "aurora-postgresql",
+    masterPassword: pulumi.interpolate`${dbAdminPassword}`,
+    masterUsername: pulumi.interpolate`${dbAdminUser}`,
+    preferredBackupWindow: "07:00-09:00",
+    finalSnapshotIdentifier: pgFinalSnapshotId,
+    dbSubnetGroupName: dbSubnet.name
+});
+const clusterInstances: aws.rds.ClusterInstance[] = [];
+for (const range = { value: 0 }; range.value < 2; range.value++) {
+    clusterInstances.push(new aws.rds.ClusterInstance(`folio-pg-cluster-instance-${range.value}`, {
+        identifier: `aurora-cluster-demo-${range.value}`,
+        clusterIdentifier: pgCluster.id,
+        instanceClass: "db.r6g.large",
+        engine: "aurora-postgresql",
+        engineVersion: "12.7",
+    }));
+}
 
-    // It would appear that folio-helm wants this in this secret rather than the configMap.
-    DB_PORT: Buffer.from("5432").toString("base64"),
+// export const folioDbHost = pgCluster.endpoint;
+// export const folioDbPort = pgCluster.port;
 
-    // TODO These three variables are present in the rancher envs, but they
-    // don't reach the pods because of code like this:
-    // https://github.com/folio-org/folio-helm/blob/ca437e194c2385867e5147d924664ac5dd8f06f0/mod-users/templates/deployment.yaml#L40
-    // However they may be quite important (especially the timeout one) considering
-    // the timeout errors that we are seeing. For the importance of this variable also see:
-    // https://github.com/folio-org/mod-permissions/blob/b0dee51ff94bfe8c3502fdc89c71d452b3889287/descriptors/ModuleDescriptor-template.json
-    // Postgres also has statement_timeout and lock_timeout both of which appear to be
-    // 0 in our deployment which I believe means they are not limited.
-    // See https://www.postgresql.org/docs/12/runtime-config-client.html.
-    DB_MAXPOOLSIZE: Buffer.from("5").toString("base64"),
-    DB_QUERYTIMEOUT: Buffer.from("60000").toString("base64"),
-    DB_CHARSET: Buffer.from("UTF-8").toString("base64"),
+// const postgresProvider = new pulumiPostgres.Provider('folio-pg-provider', {
+//     host: pgCluster.endpoint,
+//     username: pgCluster.masterUsername,
+//     password: pulumi.interpolate`${dbAdminPassword}`,
+//     superuser: true,
+// }, {
+//     dependsOn: [pgCluster]
+// });
 
-    PG_ADMIN_USER: util.base64Encode(pulumi.interpolate`${dbAdminUser}`),
-    PG_ADMIN_USER_PASSWORD: util.base64Encode(pulumi.interpolate`${dbAdminPassword}`),
-    DB_DATABASE: Buffer.from("postgres").toString("base64"),
-    KAFKA_HOST: Buffer.from("kafka").toString("base64"),
-    KAFKA_PORT: Buffer.from("9092").toString("base64"),
-    OKAPI_URL: Buffer.from(folioDeployment.okapiUrl).toString("base64"),
+// const okapiPostgresRole = new pulumiPostgres.Role("okapi-pg-role", {
+//     name: "okapi",
+//     password: pulumi.interpolate`${dbUserPassword}`,
+//     createDatabase: true,
+//     login: true
+// }, {
+//     provider: postgresProvider,
+//     dependsOn: [pgCluster, postgresProvider]
+// });
 
-    // These two vars are required for for mod-agreements and mod-licenses.
-    // For background see https://github.com/culibraries/folio-ansible/issues/22
-    OKAPI_SERVCE_PORT: Buffer.from("9130").toString("base64"),
-    OKAPI_SERVICE_HOST: Buffer.from("okapi").toString("base64"),
+// const okapiConfigDatabase = new pulumiPostgres.Database("okapi-pg-db", {
+//     name: "okapi",
+//     owner: okapiPostgresRole.name
+// }, {
+//     provider: postgresProvider,
+//     dependsOn: [pgCluster, postgresProvider, okapiPostgresRole]
+// });
 
-    // This is unique to folio-helm. It is required for many of the charts to run
-    // (mod-inventory-storage) for example. The background is that it is used to distinguish
-    // between the various development teams' k8s (rancher) deployments. In our case that
-    // isn't relevant so we just set it to "cu".
-    ENV: Buffer.from("cu").toString("base64"),
-};
+// const folioPostgresRole = new pulumiPostgres.Role("folio-pg-role", {
+//     name: "folio",
+//     password: pulumi.interpolate`${dbUserPassword}`,
+//     login: true,
+//     superuser: true
+// }, {
+//     provider: postgresProvider,
+//     dependsOn: [pgCluster, postgresProvider]
+// });
 
-// Deploy the main secret which is used by modules to connect to the db. This
-// secret name is used extensively in folio-helm.
-const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster,
-    folioNamespace, [folioNamespace]);
+// const folioPostgresDatabase = new pulumiPostgres.Database("folio-pg-db", {
+//     name: "folio",
+//     owner: folioPostgresRole.name
+// }, {
+//     provider: postgresProvider,
+//     dependsOn: [pgCluster, postgresProvider, folioPostgresRole]
+// });
+
+// const configMapData = {
+//     DB_PORT: folioDbPort,
+//     DB_DATABASE: "folio",
+//     DB_QUERYTIMEOUT: "60000",
+//     DB_CHARSET: "UTF-8",
+//     DB_MAXPOOLSIZE: "5",
+//     // TODO Add KAFKA_HOST, KAFKA_PORT
+// };
+// const configMap = folio.deploy.configMap("default-config",
+//     configMapData, appLabels, folioCluster, folioNamespace,
+//     [folioNamespace]);
+
+// var secretData = {
+//     //DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
+//     DB_HOST: util.base64Encode(folioDbHost),
+//     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
+//     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
+
+//     // It would appear that folio-helm wants this in this secret rather than the configMap.
+//     DB_PORT: Buffer.from("5432").toString("base64"),
+
+//     // TODO These three variables are present in the rancher envs, but they
+//     // don't reach the pods because of code like this:
+//     // https://github.com/folio-org/folio-helm/blob/ca437e194c2385867e5147d924664ac5dd8f06f0/mod-users/templates/deployment.yaml#L40
+//     // However they may be quite important (especially the timeout one) considering
+//     // the timeout errors that we are seeing. For the importance of this variable also see:
+//     // https://github.com/folio-org/mod-permissions/blob/b0dee51ff94bfe8c3502fdc89c71d452b3889287/descriptors/ModuleDescriptor-template.json
+//     // Postgres also has statement_timeout and lock_timeout both of which appear to be
+//     // 0 in our deployment which I believe means they are not limited.
+//     // See https://www.postgresql.org/docs/12/runtime-config-client.html.
+//     DB_MAXPOOLSIZE: Buffer.from("5").toString("base64"),
+//     DB_QUERYTIMEOUT: Buffer.from("60000").toString("base64"),
+//     DB_CHARSET: Buffer.from("UTF-8").toString("base64"),
+
+//     PG_ADMIN_USER: util.base64Encode(pulumi.interpolate`${dbAdminUser}`),
+//     PG_ADMIN_USER_PASSWORD: util.base64Encode(pulumi.interpolate`${dbAdminPassword}`),
+//     DB_DATABASE: Buffer.from("postgres").toString("base64"),
+//     KAFKA_HOST: Buffer.from("kafka").toString("base64"),
+//     KAFKA_PORT: Buffer.from("9092").toString("base64"),
+//     OKAPI_URL: Buffer.from(folioDeployment.okapiUrl).toString("base64"),
+
+//     // These two vars are required for for mod-agreements and mod-licenses.
+//     // For background see https://github.com/culibraries/folio-ansible/issues/22
+//     OKAPI_SERVCE_PORT: Buffer.from("9130").toString("base64"),
+//     OKAPI_SERVICE_HOST: Buffer.from("okapi").toString("base64"),
+
+//     // This is unique to folio-helm. It is required for many of the charts to run
+//     // (mod-inventory-storage) for example. The background is that it is used to distinguish
+//     // between the various development teams' k8s (rancher) deployments. In our case that
+//     // isn't relevant so we just set it to "cu".
+//     ENV: Buffer.from("cu").toString("base64"),
+// };
+
+// // Deploy the main secret which is used by modules to connect to the db. This
+// // secret name is used extensively in folio-helm.
+// const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster,
+//     folioNamespace, [folioNamespace]);
 
 // NOTE We are currently using pulumi's helm Release rather than helm Chart.
 // See: https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/.
@@ -182,57 +276,57 @@ export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNames
     [folioNamespace]);
 
 // This can run multiple times without causing trouble.
-export const inClusterPostgres = postgresql.deploy.helm("in-cluster-postgres", folioCluster,
-    folioNamespace, dbAdminPassword, [folioNamespace, secret]);
+// export const inClusterPostgres = postgresql.deploy.helm("in-cluster-postgres", folioCluster,
+//     folioNamespace, dbAdminPassword, [folioNamespace, secret]);
 
-// This can run multiple times without causing trouble. It depends on the result of
-// all resources in the previous step being complete.
-const dbCreateJob = postgresql.deploy.inClusterDatabaseCreation
-    ("create-database",
-     folioNamespace,
-     folioCluster,
-     pulumi.interpolate`${dbAdminUser}`,
-     pulumi.interpolate`${dbAdminPassword}`,
-     pulumi.interpolate`${dbUserName}`,
-     pulumi.interpolate`${dbUserPassword}`,
-     pulumi.interpolate`${dbHost}`,
-     "postgres",
-     [inClusterPostgres]);
+// // This can run multiple times without causing trouble. It depends on the result of
+// // all resources in the previous step being complete.
+// const dbCreateJob = postgresql.deploy.inClusterDatabaseCreation
+//     ("create-database",
+//      folioNamespace,
+//      folioCluster,
+//      pulumi.interpolate`${dbAdminUser}`,
+//      pulumi.interpolate`${dbAdminPassword}`,
+//      pulumi.interpolate`${dbUserName}`,
+//      pulumi.interpolate`${dbUserPassword}`,
+//      pulumi.interpolate`${dbHost}`,
+//      "postgres",
+//      [inClusterPostgres]);
 
-// Prepare the list of modules to deploy.
-const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
+// // Prepare the list of modules to deploy.
+// const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
-// Get a reference to the okapi module.
-const okapi: FolioModule = util.getModuleByName("okapi", modules);
+// // Get a reference to the okapi module.
+// const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
-// Deploy okapi first, being sure that other dependencies have deployed first.
-const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster,
-    folioNamespace, [secret, configMap, kafkaInstance, inClusterPostgres, dbCreateJob]);
+// // Deploy okapi first, being sure that other dependencies have deployed first.
+// const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster,
+//     folioNamespace, [secret, configMap, kafkaInstance, inClusterPostgres, dbCreateJob]);
 
-// Deploy the rest of the modules that we want. This excludes okapi.
-const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
+// // Deploy the rest of the modules that we want. This excludes okapi.
+// const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
 
-// Prepare a list of containers which will perform the module registration in sequence.
-const registrationInitContainers: input.core.v1.Container[] =
-    folio.prepare.moduleRegistrationInitContainers(modules);
+// // Prepare a list of containers which will perform the module registration in sequence.
+// const registrationInitContainers: input.core.v1.Container[] =
+//     folio.prepare.moduleRegistrationInitContainers(modules);
 
-// Run the module registration containers as init containers for the final create/
-// update super user job. This final job will attempt to create the
-// the superuser, applying all permissions to it if the deployment configuration
-// has createSuperuser set to true. If the deployment configuration has createSuperuser
-// set to false, this will apply all permissions to the superuser.
-const superUserName = config.requireSecret("superuser-name");
-const superUserPassword = config.requireSecret("superuser-password");
-folio.deploy.registerModulesAndBootstrapSuperuser
-    ("mod-reg-and-bootstrap-superuser",
-    pulumi.interpolate`${superUserName}`,
-    pulumi.interpolate`${superUserPassword}`,
-    folioDeployment,
-    folioNamespace,
-    folioCluster,
-    registrationInitContainers,
-    moduleReleases);
+// // Run the module registration containers as init containers for the final create/
+// // update super user job. This final job will attempt to create the
+// // the superuser, applying all permissions to it if the deployment configuration
+// // has createSuperuser set to true. If the deployment configuration has createSuperuser
+// // set to false, this will apply all permissions to the superuser.
+// const superUserName = config.requireSecret("superuser-name");
+// const superUserPassword = config.requireSecret("superuser-password");
+// folio.deploy.registerModulesAndBootstrapSuperuser
+//     ("mod-reg-and-bootstrap-superuser",
+//     pulumi.interpolate`${superUserName}`,
+//     pulumi.interpolate`${superUserPassword}`,
+//     folioDeployment,
+//     folioNamespace,
+//     folioCluster,
+//     registrationInitContainers,
+//     moduleReleases);
 
-// TODO Determine if the Helm chart takes care of the following:
-// Create hazelcast service account
-// Create hazelcast configmap
+// // TODO Determine if the Helm chart takes care of the following:
+// // Create hazelcast service account
+// // Create hazelcast configmap
