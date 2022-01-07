@@ -35,7 +35,7 @@ export module deploy {
         return instance;
     }
 
-    export function inClusterDatabase(
+    export function inClusterDatabaseCreation(
         name: string,
         namespace: k8s.core.v1.Namespace,
         cluster: eks.Cluster,
@@ -73,7 +73,7 @@ export module deploy {
                         restartPolicy: "Never",
                     },
                 },
-                backoffLimit: 5,
+                backoffLimit: 2,
             },
         }, {
             provider: cluster.provider,
@@ -81,12 +81,6 @@ export module deploy {
             dependsOn: dependsOn,
 
             deleteBeforeReplace: true,
-
-            customTimeouts: {
-                create: "5m",
-                delete: "5m",
-                update: "5m"
-            }
         });
     }
 

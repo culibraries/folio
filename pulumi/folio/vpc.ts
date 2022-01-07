@@ -10,7 +10,7 @@ export module deploy {
             tags: { "Name": name, ...tags },
 
             // If we have too many AZs and NAT gateways we'll run out of EIPs with our
-            // current quota. 
+            // current quota.
             numberOfAvailabilityZones: availabilityZones,
 
             // We could have these be equal to the number of availability zones for greater
@@ -56,10 +56,11 @@ export module deploy {
          tags: object,
          vpcId: Output<string>): aws.ec2.SecurityGroup {
         // Create the security group. We need a custom security group since we're
-        // going  to expose non-standard ports for things like edge modules. This
+        // going to expose non-standard ports for things like edge modules. This
         // is using the pulumi Classic API. Although Crosswalk (awsx) has its own
-        // SecurityGroup type, Cluster wants a Classic SecurityGroup type. See
-        // Cluster.clusterSecurityGroup below where we pass this into the cluster.
+        // SecurityGroup type, Cluster wants a Classic SecurityGroup type.
+        // This security group, being the security group for the VPC, also controls
+        // access to our RDS cluster.
         const sg = new aws.ec2.SecurityGroup(name, {
             tags: { "Name": name, ...tags },
             vpcId: vpcId,
@@ -74,6 +75,12 @@ export module deploy {
                 description: "Allow inbound traffic on 9000 for edgeconexion",
                 fromPort: 9000,
                 toPort: 9000,
+                protocol: "tcp",
+                cidrBlocks: ["0.0.0.0/0"]
+            }, {
+                description: "Allow inbound traffic on 5432 for postgres",
+                fromPort: 5432,
+                toPort: 5432,
                 protocol: "tcp",
                 cidrBlocks: ["0.0.0.0/0"]
             }],
