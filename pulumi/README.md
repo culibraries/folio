@@ -135,7 +135,7 @@ Run `pulumi up` to create or update a stack.
 
     ```sh
     aws iam list-roles
-    # In the response use `/folio-cluster-admin-role` to find the assoicated role and note the `Arn`
+    # In the response use `/folio-cluster-admin-role` to find the associated role and note the `Arn`
     ```
 
     Now assume the role:
@@ -179,6 +179,8 @@ Run `pulumi up` to create or update a stack.
 To clean up resources run `pulumi destroy`.
 
 This will destroy all the resources that are running. There's no need to do this on every run. As mentioned above pulumi will take care of applying patches when the code changes. The only reason to destroy is if you truly want to take down the AWS resources consumed by the stack.
+
+This operation may not always work as expected. When things go wrong do `pulumi destroy --help` to get a sense of your options. Refreshing the stack's state before destroying has been known to help. Also setting the debug flag is never a bad idea. To do both of these things try `pulumi destroy -r -d`.
 
 ## Notes
 
@@ -235,7 +237,7 @@ Generally try not to rename too many resources at once or do massive changes to 
 
 Errors like `SignatureDoesNotMatch: The request signature we calculated does not match the signature you provided` may be related to your authentication status with AWS. Verify that you are **not** using the `aws sts` temporary credentials.
 
-### Helm Charts
+### Helm charts
 
 ```log
 error: Running program '/Users/jafu6031/repos/folio/pulumi/folio' failed with an unhandled exception:
@@ -243,16 +245,55 @@ error: Running program '/Users/jafu6031/repos/folio/pulumi/folio' failed with an
 ```
 This can mean that your local helm repo is out of data and doesn't have the latest charts. Try running `helm repo update`.
 
+#### Common error messages when working with helm
+This deployment makes heavy use of helm. It is easy to have what helm knows about the deployment and what pulumi knows about it get out of sync. Usually this is easy to fix.
+
+If you see: ```error: cannot re-use a name that is still in use``` it likely means that helm still thinks that the given resource still exists even though it doesn't on the cluster.
+
+Pulumi will likely tell you what module is the culprit. You can remove it by doing:
+
+```shell
+helm delete <chart name> --namespace <kubernetes namespace>
+```
+
+And then re-run `pulumi up`. When synchronization between the actual deployment and pulumi state is an issue, running `pulumi refresh` will often help.
+
+#### When helm deployments fail
+Often when first deploying something via helm via pulumi, the deployment may fail. If this is the case, you may consider commenting out the deployment in the `index.ts` file to remove the resource before trying to redeploy. But often pulumi will be unable to remove the resource that is in the failed state. If this is the case you can be comfortable removing the resource directly with helm:
+
+```shell
+helm delete <name> --namespace <kubernetes namespace>
+```
+
 ## How to fully delete the database to start from scratch
 
-You can completely wipe out the db, by removing the deployment from the index.ts file, however the persistent volume will be stuck in the `Terminating` state. To get rid of this do:
+Log into the database from psql and drop the folio database.
+
+## Working with jobs
+We are using kubernetes jobs in a number of places:
+* To run certain database operations
+* To register modules with okapi
+* To create or update the superuser
+
+These jobs hang around after they are run. We could set `ttlSecondsAfterFinished` and have them disappear after a time. This has a number of downsides. One is that the logs for the job, which are present in the pod that is created as part of the job, also disappear. Diagnosing problems is much easier if the logs hang around.
+
+Jobs that have run and completed do not consume resources.
+
+Once a job has run successfully, as far as pulumi is concerned, it is done and won't be run again, unless it is removed. This makes jobs that should run on every change to the cluster somewhat hard to manage. Our job that creates or updates the superuser ideally would run after any new modules were added or removed. To make this happen, you have to manually remove the job either by commenting it out of index.ts, or deleting it with helm and removing it from the state with `pulumi state delete <urn>`.
+
+The idea of jobs that run every time `pulumi up` runs is a bit foreign to pulumi. As a workaround we may want to script our invocation of pulumi and do `pulumi destroy --target <job to destroy>` to first remove a resource before running `pulumi up`.
+
+## In-cluster postgres
+We are currently deploying postgres in the cluster via a helm release. If you connect to the the container running postgres and look at the environment you will notice that the db hostname is `postgres-postgres-0`. This is not correct. The actual hostname that is visible to other cluster pods is `postgresql`. This is also the value of `DB_HOST` which is encoded in our `db-connect-modules` secret and available as when you view `pulumi config --show-secrets`.
+
+## Connecting to the cluster before it is exposed
+It is highly useful to be able to connect to okapi before it is exposed. Do this by port forwarding your localhost to okapi.
+
+```shell
+kubectl -n <namespace> port-forward <okapi pod name> 9000:9130
 ```
-kubectl get pv # To get names
-kubectl patch pv <pvname> -p '{"metadata":{"finalizers":null}}'
-```
-This is a well known issue without another solution. Reference: https://github.com/kubernetes/kubernetes/issues/69697
+Then try: `curl http://localhost:9000/_/proxy/tenants/cubl/modules` to see what modules have been successfully enabled for the tenant.
 
 ## References
-
 * [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
 * [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)
