@@ -298,7 +298,7 @@ export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNames
 
 // This can run multiple times without causing trouble. It depends on the result of
 // all resources in the previous step being complete.
-const dbCreateJob = postgresql.deploy.inClusterDatabaseCreation
+const dbCreateJob = postgresql.deploy.databaseCreation
     ("create-database",
      folioNamespace,
      folioCluster,
@@ -333,17 +333,17 @@ const registrationInitContainers: input.core.v1.Container[] =
 // the superuser, applying all permissions to it if the deployment configuration
 // has createSuperuser set to true. If the deployment configuration has createSuperuser
 // set to false, this will apply all permissions to the superuser.
-// const superUserName = config.requireSecret("superuser-name");
-// const superUserPassword = config.requireSecret("superuser-password");
-// folio.deploy.registerModulesAndBootstrapSuperuser
-//     ("mod-reg-and-bootstrap-superuser",
-//     pulumi.interpolate`${superUserName}`,
-//     pulumi.interpolate`${superUserPassword}`,
-//     folioDeployment,
-//     folioNamespace,
-//     folioCluster,
-//     registrationInitContainers,
-//     moduleReleases);
+const superUserName = config.requireSecret("superuser-name");
+const superUserPassword = config.requireSecret("superuser-password");
+folio.deploy.registerModulesAndBootstrapSuperuser
+    ("mod-reg-and-bootstrap-superuser",
+    pulumi.interpolate`${superUserName}`,
+    pulumi.interpolate`${superUserPassword}`,
+    folioDeployment,
+    folioNamespace,
+    folioCluster,
+    registrationInitContainers,
+    moduleReleases);
 
 // // TODO Determine if the Helm chart takes care of the following:
 // // Create hazelcast service account

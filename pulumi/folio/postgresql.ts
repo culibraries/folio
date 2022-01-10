@@ -35,7 +35,7 @@ export module deploy {
         return instance;
     }
 
-    export function inClusterDatabaseCreation(
+    export function databaseCreation(
         name: string,
         namespace: k8s.core.v1.Namespace,
         cluster: eks.Cluster,
