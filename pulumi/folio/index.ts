@@ -189,21 +189,26 @@ export const inClusterPostgres = postgresql.deploy.helm("in-cluster-postgres", f
 // all resources in the previous step being complete.
 const dbCreateJob = postgresql.deploy.inClusterDatabaseCreation
     ("create-database",
-     folioNamespace,
-     folioCluster,
-     pulumi.interpolate`${dbAdminUser}`,
-     pulumi.interpolate`${dbAdminPassword}`,
-     pulumi.interpolate`${dbUserName}`,
-     pulumi.interpolate`${dbUserPassword}`,
-     pulumi.interpolate`${dbHost}`,
-     "postgres",
-     [inClusterPostgres]);
+    folioNamespace,
+    folioCluster,
+    pulumi.interpolate`${dbAdminUser}`,
+    pulumi.interpolate`${dbAdminPassword}`,
+    pulumi.interpolate`${dbUserName}`,
+    pulumi.interpolate`${dbUserPassword}`,
+    pulumi.interpolate`${dbHost}`,
+    "postgres",
+    [inClusterPostgres]);
 
 // Prepare the list of modules to deploy.
 const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
+// Create a reference to the stripes module,
+const stripes: FolioModule = {
+    name: "stripes",
+    version: "2021.r2.2"
+}
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster,

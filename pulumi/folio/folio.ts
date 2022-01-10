@@ -217,6 +217,7 @@ export module deploy {
         const moduleReleases: Resource[] = [];
 
         for (const module of toDeploy) {
+            const chartName = module.name
             const values = {
                 // Get the image from the version associated with the release.
                 image: {
@@ -350,12 +351,12 @@ export module deploy {
                 backoffLimit: 2
             }
         }, {
-            provider: cluster.provider,
+                provider: cluster.provider,
 
-            dependsOn: dependsOn,
+                dependsOn: dependsOn,
 
-            deleteBeforeReplace: true
-        });
+                deleteBeforeReplace: true
+            });
     }
 
     function deployModuleWithHelmChart(module: FolioModule,
@@ -368,7 +369,7 @@ export module deploy {
 
             name: module.name,
 
-            chart: module.name,
+            chart: chartName,
 
             repositoryOpts: {
                 repo: "https://folio-org.github.io/folio-helm/",
@@ -392,13 +393,13 @@ export module deploy {
             // We don't specify the chart version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
         }, {
-            provider: cluster.provider,
+                provider: cluster.provider,
 
-            // This allows for any changes to the module's helm-chart params to result in a replacing
-            // change to the pod.
-            deleteBeforeReplace: true,
+                // This allows for any changes to the module's helm-chart params to result in a replacing
+                // change to the pod.
+                deleteBeforeReplace: true,
 
-            dependsOn: dependsOn
-        });
+                dependsOn: dependsOn
+            });
     }
 }
