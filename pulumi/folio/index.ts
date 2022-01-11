@@ -14,9 +14,7 @@ import * as util from "./util";
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 
-import * as pulumiPostgres from "@pulumi/postgresql";
-import { timeLog } from "console";
-import { superuser } from "@pulumi/postgresql/config";
+// import * as pulumiPostgres from "@pulumi/postgresql";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -27,11 +25,17 @@ const tags = {
     "DataClassificationCompliance": "standard"
 };
 
+// Create the CIDR block for the VPC. This is the default, but there
+// are some items in our security group that should have this range rather
+// than being completely open.
+// For more information see: https://www.pulumi.com/docs/guides/crosswalk/aws/vpc/#configuring-cidr-blocks-for-a-vpc
+const clusterCidrBlock ="10.0.0.0/16";
+
 // Create our VPC and security group.
-const folioVpc = vpc.deploy.awsVpc("folio-vpc", tags, 2, 1);
+const folioVpc = vpc.deploy.awsVpc("folio-vpc", tags, 3, 1, clusterCidrBlock);
 export const folioVpcId = folioVpc.id;
 
-const folioSecurityGroup = vpc.deploy.awsSecurityGroup("folio-security-group", tags, folioVpc.id);
+const folioSecurityGroup = vpc.deploy.awsSecurityGroup("folio-security-group", tags, folioVpc.id, clusterCidrBlock);
 
 // Create our own IAM role and profile which we can bind into the cluster's
 // NodeGroup. Cluster will also create a default for us, but we show here how
@@ -127,10 +131,15 @@ const dbUserPassword = config.requireSecret("db-user-password");
 const dbSubnetGroup = new aws.rds.SubnetGroup("folio-db-subnet", {
     subnetIds: folioVpc.privateSubnetIds
 });
-export const pgFinalSnapshotId = "folio-pg-cluster-final-snapshot";
+
+// TODO Does this need to be renamed when deleting a cluster?
+// See https://github.com/hashicorp/terraform/issues/5753
+export const pgFinalSnapshotId = "folio-pg-cluster-final-snapshot-0";
 export const pgClusterId = "folio-pg-cluster";
 const clusterName = "folio-pg";
 const pgCluster = new aws.rds.Cluster(clusterName, {
+    tags: tags,
+
     // TODO Be careful with this list. It seems to error out if 3 items aren't provided on
     // subsequent runs doing a replace because of a diff on availabilityZones. The error is:
     // error creating RDS cluster: DBClusterAlreadyExistsFault: DB Cluster already exists.
@@ -149,19 +158,30 @@ const pgCluster = new aws.rds.Cluster(clusterName, {
     clusterIdentifier: pgClusterId,
     databaseName: "postgres",
     engine: "aurora-postgresql",
+    engineVersion: "12.7",
     masterPassword: pulumi.interpolate`${dbAdminPassword}`,
     masterUsername: pulumi.interpolate`${dbAdminUser}`,
     preferredBackupWindow: "07:00-09:00",
-    finalSnapshotIdentifier: pgFinalSnapshotId,
     dbSubnetGroupName: dbSubnetGroup.name,
+
+    // TODO Deleting the rds instance completely can be tedious with pululmi destroy.
+    // Setting this property doesn't help.
+    // But will setting it on create help next time we want to do pulumi destroy
+    // and actually destroy the db when destroying?
+    // See https://stackoverflow.com/questions/50930470/terraform-error-rds-cluster-finalsnapshotidentifier-is-required-when-a-final-s
+    // Manually changing the skipFinalSnapshot values in an exported stack.json does
+    // work however.
+    skipFinalSnapshot: true,
+    finalSnapshotIdentifier: pgFinalSnapshotId,
+
     // This is necessary, otherwise it will bind the rds cluster to the default security
     // group.
-    vpcSecurityGroupIds: [ folioSecurityGroup.id ]
-    // TODO This sets it up using the default port of 5432
+    vpcSecurityGroupIds: [ folioSecurityGroup.id ],
 });
 const clusterInstances: aws.rds.ClusterInstance[] = [];
 for (const range = { value: 0 }; range.value < 2; range.value++) {
     clusterInstances.push(new aws.rds.ClusterInstance(`folio-pg-cluster-instance-${range.value}`, {
+        tags: tags,
         identifier: `folio-pg-cluster-instance-${range.value}`,
         clusterIdentifier: pgCluster.id,
         instanceClass: "db.r6g.large",
@@ -226,7 +246,8 @@ var secretData = {
     // isn't relevant so we just set it to "cu".
     ENV: Buffer.from("cu").toString("base64"),
 
-    // TODO Does this fix the problem with mod-licenses?
+    // Not entirely sure if this makes mod-licenses and mod-agreements behave
+    // but they are behaving and don't think there's a harm in leaving it in.
     GRAILS_SERVER_PORT: Buffer.from("8080").toString("base64")
 };
 

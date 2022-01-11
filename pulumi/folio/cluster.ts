@@ -52,7 +52,6 @@ export module deploy {
                     username: "pulumi:admin-usr",
                 }
             ],
-
         });
 
         return cluster;
