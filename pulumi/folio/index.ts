@@ -274,6 +274,7 @@ export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNames
 // all resources in the previous step being complete.
 const dbCreateJob = postgresql.deploy.databaseCreation
     ("create-database",
+<<<<<<< HEAD
      folioNamespace,
      folioCluster,
      pulumi.interpolate`${dbAdminUser}`,
@@ -283,12 +284,28 @@ const dbCreateJob = postgresql.deploy.databaseCreation
      folioDbHost,
      "postgres",
      [folioNamespace, pgCluster, ...clusterInstances]);
+=======
+    folioNamespace,
+    folioCluster,
+    pulumi.interpolate`${dbAdminUser}`,
+    pulumi.interpolate`${dbAdminPassword}`,
+    pulumi.interpolate`${dbUserName}`,
+    pulumi.interpolate`${dbUserPassword}`,
+    pulumi.interpolate`${dbHost}`,
+    "postgres",
+    [inClusterPostgres]);
+>>>>>>> main
 
 // // Prepare the list of modules to deploy.
 const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
+// Create a reference to the stripes module,
+const stripes: FolioModule = {
+    name: "stripes",
+    version: "2021.r2.2"
+}
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 // TODO Add the dbCreateJob back in here as a dep.
