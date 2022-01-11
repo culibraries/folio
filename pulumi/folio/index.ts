@@ -164,7 +164,7 @@ const pgCluster = new aws.rds.Cluster(clusterName, {
     preferredBackupWindow: "07:00-09:00",
     dbSubnetGroupName: dbSubnetGroup.name,
 
-    // TODO Deleting the rds instance completely can be tedious with pululmi destroy.
+    // TODO Deleting the rds instance completely can be tedious with pulumi destroy.
     // Setting this property doesn't help.
     // But will setting it on create help next time we want to do pulumi destroy
     // and actually destroy the db when destroying?
@@ -274,7 +274,6 @@ export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNames
 // all resources in the previous step being complete.
 const dbCreateJob = postgresql.deploy.databaseCreation
     ("create-database",
-<<<<<<< HEAD
      folioNamespace,
      folioCluster,
      pulumi.interpolate`${dbAdminUser}`,
@@ -284,28 +283,21 @@ const dbCreateJob = postgresql.deploy.databaseCreation
      folioDbHost,
      "postgres",
      [folioNamespace, pgCluster, ...clusterInstances]);
-=======
-    folioNamespace,
-    folioCluster,
-    pulumi.interpolate`${dbAdminUser}`,
-    pulumi.interpolate`${dbAdminPassword}`,
-    pulumi.interpolate`${dbUserName}`,
-    pulumi.interpolate`${dbUserPassword}`,
-    pulumi.interpolate`${dbHost}`,
-    "postgres",
-    [inClusterPostgres]);
->>>>>>> main
 
 // // Prepare the list of modules to deploy.
 const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
+
+// TODO Use the constructor for folio module or add other required props here.
+// Or maybe just create create its own function to deploy it since it is sort of its
+// own animal. Its also not a module so a lot of things are different about it.
 // Create a reference to the stripes module,
-const stripes: FolioModule = {
-    name: "stripes",
-    version: "2021.r2.2"
-}
+// const stripes: FolioModule = {
+//     name: "stripes",
+//     version: "2021.r2.2"
+// }
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 // TODO Add the dbCreateJob back in here as a dep.

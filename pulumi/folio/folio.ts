@@ -369,7 +369,7 @@ export module deploy {
 
             name: module.name,
 
-            chart: chartName,
+            chart: module.name,
 
             repositoryOpts: {
                 repo: "https://folio-org.github.io/folio-helm/",
