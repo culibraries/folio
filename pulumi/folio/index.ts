@@ -138,6 +138,7 @@ const pgCluster = new aws.rds.Cluster(clusterName, {
     // two azs in the vpc. Making it 2 seems to work again. Ok well it will attempt
     // to replace when there are only 2 still. Adding 3 makes it not do that, which is
     // probably wrong since the vpc only has 2.
+
     // I believe destroying and creating the stack with 3 azs in the vpc should fix this.
     availabilityZones: [
         "us-west-2a",
