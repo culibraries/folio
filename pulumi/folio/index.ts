@@ -116,7 +116,7 @@ const appLabels = { appClass: appName };
 // These secrets have been set in the stack using the pulumi command line.
 const config = new pulumi.Config();
 
-//const dbHost = config.requireSecret("db-host");
+const inClusterDbHost = config.requireSecret("db-host");
 const dbAdminUser = config.requireSecret("db-admin-user");
 const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
@@ -126,19 +126,19 @@ const dbUserPassword = config.requireSecret("db-user-password");
 // TODO Make this dependent on the vpc.
 const dbSubnetGroup = new aws.rds.SubnetGroup("folio-db-subnet", {
     subnetIds: folioVpc.privateSubnetIds
-    //subnetIds: folioCluster.clusterSecurityGroup
 });
 export const pgFinalSnapshotId = "folio-pg-cluster-final-snapshot";
 export const pgClusterId = "folio-pg-cluster";
 const clusterName = "folio-pg";
 const pgCluster = new aws.rds.Cluster(clusterName, {
-    // NOTE: Be careful with this list. It seems to error out if 3 items aren't provided on
+    // TODO Be careful with this list. It seems to error out if 3 items aren't provided on
     // subsequent runs doing a replace because of a diff on availabilityZones. The error is:
     // error creating RDS cluster: DBClusterAlreadyExistsFault: DB Cluster already exists.
     // But I'm not seeing that it can't create in us-west-2c, because I believe we only have
     // two azs in the vpc. Making it 2 seems to work again. Ok well it will attempt
     // to replace when there are only 2 still. Adding 3 makes it not do that, which is
     // probably wrong since the vpc only has 2.
+    // I believe destroying and creating the stack with 3 azs in the vpc should fix this.
     availabilityZones: [
         "us-west-2a",
         "us-west-2b",
@@ -172,57 +172,6 @@ for (const range = { value: 0 }; range.value < 2; range.value++) {
 
 export const folioDbHost = pgCluster.endpoint;
 export const folioDbPort = pgCluster.port;
-
-// const postgresProvider = new pulumiPostgres.Provider('folio-pg-provider', {
-//     host: pgCluster.endpoint,
-//     port: pgCluster.port,
-//     database: "postgres",
-//     username: pulumi.interpolate`${dbAdminUser}`,
-//     password: pulumi.interpolate`${dbAdminPassword}`,
-//     superuser: true,
-//     expectedVersion: "12.7",
-//     // TODO Is this required?
-//     sslmode: "require"
-// }, {
-//     provider: folioCluster.provider,
-//     dependsOn: [pgCluster, ...clusterInstances]
-// });
-
-// const okapiPostgresRole = new pulumiPostgres.Role("okapi-pg-role", {
-//     name: "okapi",
-//     password: pulumi.interpolate`${dbUserPassword}`,
-//     createDatabase: true,
-//     login: true
-// }, {
-//     provider: postgresProvider,
-//     dependsOn: [pgCluster, ...clusterInstances, postgresProvider]
-// });
-
-// const okapiConfigDatabase = new pulumiPostgres.Database("okapi-pg-db", {
-//     name: "okapi",
-//     owner: okapiPostgresRole.name
-// }, {
-//     provider: postgresProvider,
-//     dependsOn: [pgCluster, ...clusterInstances, postgresProvider, okapiPostgresRole]
-// });
-
-// const folioPostgresRole = new pulumiPostgres.Role("folio-pg-role", {
-//     name: "folio",
-//     password: pulumi.interpolate`${dbUserPassword}`,
-//     login: true,
-//     superuser: true
-// }, {
-//     provider: postgresProvider,
-//     dependsOn: [pgCluster, ...clusterInstances, postgresProvider]
-// });
-
-// const folioPostgresDatabase = new pulumiPostgres.Database("folio-pg-db", {
-//     name: "folio",
-//     owner: folioPostgresRole.name
-// }, {
-//     provider: postgresProvider,
-//     dependsOn: [pgCluster, ...clusterInstances, postgresProvider, folioPostgresRole]
-// });
 
 const configMapData = {
     DB_PORT: "5432",
@@ -267,7 +216,7 @@ var secretData = {
 
     // These two vars are required for for mod-agreements and mod-licenses.
     // For background see https://github.com/culibraries/folio-ansible/issues/22
-    OKAPI_SERVCE_PORT: Buffer.from("9130").toString("base64"),
+    OKAPI_SERVICE_PORT: Buffer.from("9130").toString("base64"),
     OKAPI_SERVICE_HOST: Buffer.from("okapi").toString("base64"),
 
     // This is unique to folio-helm. It is required for many of the charts to run
@@ -275,6 +224,9 @@ var secretData = {
     // between the various development teams' k8s (rancher) deployments. In our case that
     // isn't relevant so we just set it to "cu".
     ENV: Buffer.from("cu").toString("base64"),
+
+    // TODO Does this fix the problem with mod-licenses?
+    GRAILS_SERVER_PORT: Buffer.from("8080").toString("base64")
 };
 
 // // Deploy the main secret which is used by modules to connect to the db. This

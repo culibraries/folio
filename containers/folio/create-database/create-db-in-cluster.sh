@@ -1,9 +1,7 @@
 #!/bin/sh
 
-# TODO THis has been known to work for creating the in-cluster-pg. It produces errors
+# This has been known to work for creating the in-cluster-pg. It produces errors
 # when run against Aurora.
-# It also deviates from the offical docs:
-# https://docs.folio.org/docs/getting-started/installation/singleserverwithcontainers/#create-a-database-and-role-for-okapi
 
 # Set postgres password environment variable for PG Admin user
 export PGPASSWORD=$PG_ADMIN_USER_PASSWORD

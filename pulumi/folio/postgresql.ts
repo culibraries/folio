@@ -73,7 +73,7 @@ export module deploy {
                         restartPolicy: "Never",
                     },
                 },
-                backoffLimit: 2,
+                backoffLimit: 1,
             },
         }, {
             provider: cluster.provider,
@@ -83,41 +83,4 @@ export module deploy {
             deleteBeforeReplace: true,
         });
     }
-
-    // TODO Probably remove this. We need to use aws.rds.Cluster because that is Aurora. This
-    // is non-Aurora.
-    export function rdsInstance(name: string,
-        cluster: eks.Cluster,
-
-        pgAdminUser: Output<string>,
-        pgAdminPassword: Output<string>,
-        vpc: awsx.ec2.Vpc,
-        sg: aws.ec2.SecurityGroup,
-        availabilityZone: string,
-        storageGB: number,
-        instanceClass: string,
-
-        dependsOn?: Resource[]): aws.rds.Instance {
-            return new aws.rds.Instance(name, {
-                engine: 'postgresql',
-                username: pgAdminUser,
-                password: pgAdminPassword,
-                availabilityZone: availabilityZone,
-                instanceClass: instanceClass,
-                allocatedStorage: storageGB,
-                deletionProtection: true,
-                engineVersion: "12",
-                // TODO It is unknown how to get these. See:
-                // Could be this https://www.pulumi.com/registry/packages/aws/api-docs/rds/subnetgroup/
-                // See https://github.com/pulumi/pulumi-aws/issues/390
-                // dbSubnetGroupName: vpc.id,
-                // vpcSecurityGroupIds: [ sg.id ]
-              }, {
-                  // TODO Do we want/need this here?
-                  provider: cluster.provider,
-
-                  dependsOn: dependsOn
-              });
-        }
-
 }
