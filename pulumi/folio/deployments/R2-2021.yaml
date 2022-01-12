@@ -4,7 +4,7 @@
 # accidentally run it twice with 'true'. If you run it the first time with 'false'
 # comment out the create superuser code from index.ts, run pulumi up to delete the
 # resource, comment in create superuser, and then run it with 'true'
-createSuperuser: false
+createSuperuser: true
 # Generate this list from platform-complete/install.json from the folio org github.
 # This list was generated from the R2-2021 branch (Iris).
 # TODO Write a script to perform the transform.

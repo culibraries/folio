@@ -348,7 +348,7 @@ export module deploy {
                         restartPolicy: "Never",
                     },
                 },
-                backoffLimit: 2
+                backoffLimit: 1
             }
         }, {
                 provider: cluster.provider,
@@ -369,7 +369,7 @@ export module deploy {
 
             name: module.name,
 
-            chart: chartName,
+            chart: module.name,
 
             repositoryOpts: {
                 repo: "https://folio-org.github.io/folio-helm/",

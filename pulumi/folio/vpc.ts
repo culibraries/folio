@@ -5,12 +5,13 @@ import { Output } from "@pulumi/pulumi";
 
 export module deploy {
     export function awsVpc(
-        name: string, tags: object, availabilityZones: number, natGateways: number): awsx.ec2.Vpc {
+        name: string, tags: object, availabilityZones: number, natGateways: number, cidrBlock: string): awsx.ec2.Vpc {
         const vpc = new awsx.ec2.Vpc(name, {
+
             tags: { "Name": name, ...tags },
 
             // If we have too many AZs and NAT gateways we'll run out of EIPs with our
-            // current quota. 
+            // current quota.
             numberOfAvailabilityZones: availabilityZones,
 
             // We could have these be equal to the number of availability zones for greater
@@ -21,12 +22,14 @@ export module deploy {
             // for what's going on with the tags here.
             subnets: [{
                 type: "public", name: "folio-subnet",
-                tags: { "kubernetes.io/role/elb": "1", ...tags }
+                tags: { "kubernetes.io/role/elb": "1", ...tags },
             },
             {
                 type: "private", name: "folio-subnet",
                 tags: { "kubernetes.io/role/internal-elb": "1", ...tags }
-            }]
+            }],
+
+            cidrBlock: cidrBlock
         },
             {
                 // Inform pulumi to ignore tag changes to the VPCs or subnets, so that
@@ -54,12 +57,14 @@ export module deploy {
     export function awsSecurityGroup
         (name: string,
          tags: object,
-         vpcId: Output<string>): aws.ec2.SecurityGroup {
+         vpcId: Output<string>,
+         clusterCidrBlock: string): aws.ec2.SecurityGroup {
         // Create the security group. We need a custom security group since we're
-        // going  to expose non-standard ports for things like edge modules. This
+        // going to expose non-standard ports for things like edge modules. This
         // is using the pulumi Classic API. Although Crosswalk (awsx) has its own
-        // SecurityGroup type, Cluster wants a Classic SecurityGroup type. See
-        // Cluster.clusterSecurityGroup below where we pass this into the cluster.
+        // SecurityGroup type, Cluster wants a Classic SecurityGroup type.
+        // This security group, being the security group for the VPC, also controls
+        // access to our RDS cluster.
         const sg = new aws.ec2.SecurityGroup(name, {
             tags: { "Name": name, ...tags },
             vpcId: vpcId,
@@ -76,13 +81,19 @@ export module deploy {
                 toPort: 9000,
                 protocol: "tcp",
                 cidrBlocks: ["0.0.0.0/0"]
+            }, {
+                description: "Allow inbound traffic on 5432 for postgres",
+                fromPort: 5432,
+                toPort: 5432,
+                protocol: "tcp",
+                cidrBlocks: ["0.0.0.0/0"]
             }],
             egress: [{
                 description: "Allow outbound traffic",
                 fromPort: 0,
                 toPort: 0,
                 protocol: "-1",
-                cidrBlocks: ["0.0.0.0/0"]
+                cidrBlocks: [clusterCidrBlock]
             }]
         });
 

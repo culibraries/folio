@@ -14,6 +14,8 @@ import * as util from "./util";
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 
+// import * as pulumiPostgres from "@pulumi/postgresql";
+
 // Set some default tags which we will add to when defining resources.
 const tags = {
     "Owner": "CTA",
@@ -23,9 +25,17 @@ const tags = {
     "DataClassificationCompliance": "standard"
 };
 
+// Create the CIDR block for the VPC. This is the default, but there
+// are some items in our security group that should have this range rather
+// than being completely open.
+// For more information see: https://www.pulumi.com/docs/guides/crosswalk/aws/vpc/#configuring-cidr-blocks-for-a-vpc
+const clusterCidrBlock ="10.0.0.0/16";
+
 // Create our VPC and security group.
-const folioVpc = vpc.deploy.awsVpc("folio-vpc", tags, 2, 1);
-const folioSecurityGroup = vpc.deploy.awsSecurityGroup("folio-security-group", tags, folioVpc.id);
+const folioVpc = vpc.deploy.awsVpc("folio-vpc", tags, 3, 1, clusterCidrBlock);
+export const folioVpcId = folioVpc.id;
+
+const folioSecurityGroup = vpc.deploy.awsSecurityGroup("folio-security-group", tags, folioVpc.id, clusterCidrBlock);
 
 // Create our own IAM role and profile which we can bind into the cluster's
 // NodeGroup. Cluster will also create a default for us, but we show here how
@@ -74,6 +84,7 @@ cluster.deploy.awsAddOn("folio-kube-proxy-addon", "kube-proxy", tags, folioClust
 
 // Export a few resulting fields to make them easy to use.
 export const vpcId = folioVpc.id;
+export const folioSecurityGroupId = folioSecurityGroup.id;
 export const vpcPrivateSubnetIds = folioVpc.privateSubnetIds;
 export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
 
@@ -104,6 +115,85 @@ const folioDeployment = new FolioDeployment(tenant,
 // Create a configMap for folio for certain non-secret environment variables that will be deployed.
 const appName = "folio";
 const appLabels = { appClass: appName };
+
+// Create a secret for folio to store our environment variables that k8s will inject into each pod.
+// These secrets have been set in the stack using the pulumi command line.
+const config = new pulumi.Config();
+
+const inClusterDbHost = config.requireSecret("db-host");
+const dbAdminUser = config.requireSecret("db-admin-user");
+const dbAdminPassword = config.requireSecret("db-admin-password");
+const dbUserName = config.requireSecret("db-user-name");
+const dbUserPassword = config.requireSecret("db-user-password");
+
+// TODO Add tags to this and other new stuff.
+// TODO Make this dependent on the vpc.
+const dbSubnetGroup = new aws.rds.SubnetGroup("folio-db-subnet", {
+    subnetIds: folioVpc.privateSubnetIds
+});
+
+// TODO Does this need to be renamed when deleting a cluster?
+// See https://github.com/hashicorp/terraform/issues/5753
+export const pgFinalSnapshotId = "folio-pg-cluster-final-snapshot-0";
+export const pgClusterId = "folio-pg-cluster";
+const clusterName = "folio-pg";
+const pgCluster = new aws.rds.Cluster(clusterName, {
+    tags: tags,
+
+    // TODO Be careful with this list. It seems to error out if 3 items aren't provided on
+    // subsequent runs doing a replace because of a diff on availabilityZones. The error is:
+    // error creating RDS cluster: DBClusterAlreadyExistsFault: DB Cluster already exists.
+    // But I'm not seeing that it can't create in us-west-2c, because I believe we only have
+    // two azs in the vpc. Making it 2 seems to work again. Ok well it will attempt
+    // to replace when there are only 2 still. Adding 3 makes it not do that, which is
+    // probably wrong since the vpc only has 2.
+
+    // I believe destroying and creating the stack with 3 azs in the vpc should fix this.
+    availabilityZones: [
+        "us-west-2a",
+        "us-west-2b",
+        "us-west-2c"
+    ],
+    backupRetentionPeriod: 5,
+    clusterIdentifier: pgClusterId,
+    databaseName: "postgres",
+    engine: "aurora-postgresql",
+    engineVersion: "12.7",
+    masterPassword: pulumi.interpolate`${dbAdminPassword}`,
+    masterUsername: pulumi.interpolate`${dbAdminUser}`,
+    preferredBackupWindow: "07:00-09:00",
+    dbSubnetGroupName: dbSubnetGroup.name,
+
+    // TODO Deleting the rds instance completely can be tedious with pulumi destroy.
+    // Setting this property doesn't help.
+    // But will setting it on create help next time we want to do pulumi destroy
+    // and actually destroy the db when destroying?
+    // See https://stackoverflow.com/questions/50930470/terraform-error-rds-cluster-finalsnapshotidentifier-is-required-when-a-final-s
+    // Manually changing the skipFinalSnapshot values in an exported stack.json does
+    // work however.
+    skipFinalSnapshot: true,
+    finalSnapshotIdentifier: pgFinalSnapshotId,
+
+    // This is necessary, otherwise it will bind the rds cluster to the default security
+    // group.
+    vpcSecurityGroupIds: [ folioSecurityGroup.id ],
+});
+const clusterInstances: aws.rds.ClusterInstance[] = [];
+for (const range = { value: 0 }; range.value < 2; range.value++) {
+    clusterInstances.push(new aws.rds.ClusterInstance(`folio-pg-cluster-instance-${range.value}`, {
+        tags: tags,
+        identifier: `folio-pg-cluster-instance-${range.value}`,
+        clusterIdentifier: pgCluster.id,
+        instanceClass: "db.r6g.large",
+        engine: "aurora-postgresql",
+        engineVersion: "12.7",
+        dbSubnetGroupName: dbSubnetGroup.name
+    }));
+}
+
+export const folioDbHost = pgCluster.endpoint;
+export const folioDbPort = pgCluster.port;
+
 const configMapData = {
     DB_PORT: "5432",
     DB_DATABASE: "folio",
@@ -116,18 +206,9 @@ const configMap = folio.deploy.configMap("default-config",
     configMapData, appLabels, folioCluster, folioNamespace,
     [folioNamespace]);
 
-// Create a secret for folio to store our environment variables that k8s will inject into each pod.
-// These secrets have been set in the stack using the pulumi command line.
-const config = new pulumi.Config();
-
-const dbHost = config.requireSecret("db-host");
-const dbAdminUser = config.requireSecret("db-admin-user");
-const dbAdminPassword = config.requireSecret("db-admin-password");
-const dbUserName = config.requireSecret("db-user-name");
-const dbUserPassword = config.requireSecret("db-user-password");
-
 var secretData = {
-    DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
+    //DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
+    DB_HOST: util.base64Encode(folioDbHost),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
 
@@ -156,7 +237,7 @@ var secretData = {
 
     // These two vars are required for for mod-agreements and mod-licenses.
     // For background see https://github.com/culibraries/folio-ansible/issues/22
-    OKAPI_SERVCE_PORT: Buffer.from("9130").toString("base64"),
+    OKAPI_SERVICE_PORT: Buffer.from("9130").toString("base64"),
     OKAPI_SERVICE_HOST: Buffer.from("okapi").toString("base64"),
 
     // This is unique to folio-helm. It is required for many of the charts to run
@@ -164,10 +245,14 @@ var secretData = {
     // between the various development teams' k8s (rancher) deployments. In our case that
     // isn't relevant so we just set it to "cu".
     ENV: Buffer.from("cu").toString("base64"),
+
+    // Not entirely sure if this makes mod-licenses and mod-agreements behave
+    // but they are behaving and don't think there's a harm in leaving it in.
+    GRAILS_SERVER_PORT: Buffer.from("8080").toString("base64")
 };
 
-// Deploy the main secret which is used by modules to connect to the db. This
-// secret name is used extensively in folio-helm.
+// // Deploy the main secret which is used by modules to connect to the db. This
+// // secret name is used extensively in folio-helm.
 const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster,
     folioNamespace, [folioNamespace]);
 
@@ -181,38 +266,43 @@ const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, 
 export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNamespace,
     [folioNamespace]);
 
-// This can run multiple times without causing trouble.
-export const inClusterPostgres = postgresql.deploy.helm("in-cluster-postgres", folioCluster,
-    folioNamespace, dbAdminPassword, [folioNamespace, secret]);
+//This can run multiple times without causing trouble.
+// export const inClusterPostgres = postgresql.deploy.helm("in-cluster-postgres", folioCluster,
+//     folioNamespace, dbAdminPassword, [folioNamespace, secret]);
 
 // This can run multiple times without causing trouble. It depends on the result of
 // all resources in the previous step being complete.
-const dbCreateJob = postgresql.deploy.inClusterDatabaseCreation
+const dbCreateJob = postgresql.deploy.databaseCreation
     ("create-database",
-    folioNamespace,
-    folioCluster,
-    pulumi.interpolate`${dbAdminUser}`,
-    pulumi.interpolate`${dbAdminPassword}`,
-    pulumi.interpolate`${dbUserName}`,
-    pulumi.interpolate`${dbUserPassword}`,
-    pulumi.interpolate`${dbHost}`,
-    "postgres",
-    [inClusterPostgres]);
+     folioNamespace,
+     folioCluster,
+     pulumi.interpolate`${dbAdminUser}`,
+     pulumi.interpolate`${dbAdminPassword}`,
+     pulumi.interpolate`${dbUserName}`,
+     pulumi.interpolate`${dbUserPassword}`,
+     folioDbHost,
+     "postgres",
+     [folioNamespace, pgCluster, ...clusterInstances]);
 
-// Prepare the list of modules to deploy.
+// // Prepare the list of modules to deploy.
 const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
+
+// TODO Use the constructor for folio module or add other required props here.
+// Or maybe just create create its own function to deploy it since it is sort of its
+// own animal. Its also not a module so a lot of things are different about it.
 // Create a reference to the stripes module,
-const stripes: FolioModule = {
-    name: "stripes",
-    version: "2021.r2.2"
-}
+// const stripes: FolioModule = {
+//     name: "stripes",
+//     version: "2021.r2.2"
+// }
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
+// TODO Add the dbCreateJob back in here as a dep.
 const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster,
-    folioNamespace, [secret, configMap, kafkaInstance, inClusterPostgres, dbCreateJob]);
+    folioNamespace, [pgCluster, ...clusterInstances, secret, configMap, kafkaInstance, dbCreateJob]);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
@@ -238,6 +328,6 @@ folio.deploy.registerModulesAndBootstrapSuperuser
     registrationInitContainers,
     moduleReleases);
 
-// TODO Determine if the Helm chart takes care of the following:
-// Create hazelcast service account
-// Create hazelcast configmap
+// // TODO Determine if the Helm chart takes care of the following:
+// // Create hazelcast service account
+// // Create hazelcast configmap

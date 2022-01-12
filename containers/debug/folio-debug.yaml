@@ -10,9 +10,9 @@ spec:
     command:
       - sleep
       - "3600"
-    envFrom:
-      - secretRef:
-          name: db-connect-modules
+    # envFrom:
+      # - secretRef:
+      #     name: db-connect-modules
       # - secretRef:
       #     name: kafka-connect
   restartPolicy: Always

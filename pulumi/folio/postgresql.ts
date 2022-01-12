@@ -2,6 +2,8 @@ import * as pulumi from "@pulumi/pulumi";
 import { Output, Resource } from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import * as eks from "@pulumi/eks";
+import * as aws from "@pulumi/aws";
+import * as awsx from "@pulumi/awsx";
 
 // Deploy PostgreSQL using a Helm chart.
 
@@ -33,7 +35,7 @@ export module deploy {
         return instance;
     }
 
-    export function inClusterDatabaseCreation(
+    export function databaseCreation(
         name: string,
         namespace: k8s.core.v1.Namespace,
         cluster: eks.Cluster,
@@ -71,7 +73,7 @@ export module deploy {
                         restartPolicy: "Never",
                     },
                 },
-                backoffLimit: 5,
+                backoffLimit: 1,
             },
         }, {
             provider: cluster.provider,
@@ -79,13 +81,6 @@ export module deploy {
             dependsOn: dependsOn,
 
             deleteBeforeReplace: true,
-
-            customTimeouts: {
-                create: "5m",
-                delete: "5m",
-                update: "5m"
-            }
         });
     }
-
 }
