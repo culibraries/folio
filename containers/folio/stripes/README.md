@@ -34,7 +34,7 @@ If you get a SIGINT or similar failure during build it is likely because you don
 
 ### Pushing the container
 
-For the requilt container to be used by pulumi you'll need to push it out to ghcr.
+For the rebuilt container to be used by pulumi you'll need to push it out to ghcr.
 
 To push any changes to this container to our github package hub:
 
