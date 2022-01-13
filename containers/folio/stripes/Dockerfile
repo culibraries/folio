@@ -1,7 +1,8 @@
 FROM node:15-alpine as stripes_build
 
+# TODO I think this needs to be our actual public URL for okapi.
 ARG OKAPI_URL=http://okapi:9130
-ARG TENANT_ID=culibraries
+ARG TENANT_ID=cubl
 
 RUN mkdir -p /etc/folio/stripes
 WORKDIR /etc/folio/stripes
@@ -25,10 +26,6 @@ COPY --from=stripes_build /etc/folio/stripes/yarn.lock /usr/share/nginx/html/yar
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY entrypoint.sh /usr/bin/entrypoint.sh
 
-# TODO Connect to the container and see that these files are actually copied
-# BC it's saying "permission-denied: unknown".
-# Can connect like this
+RUN ["chmod", "+x", "/usr/bin/entrypoint.sh"]
 
-# RUN ["chmod", "+x", "/usr/bin/entrypoint.sh"]
-
-# ENTRYPOINT ["/usr/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/entrypoint.sh"]

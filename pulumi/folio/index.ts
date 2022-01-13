@@ -319,7 +319,8 @@ const modRegistrationJob = folio.deploy.registerModulesAndBootstrapSuperuser
     registrationInitContainers,
     moduleReleases);
 
-folio.deploy.stripes("culibraries/stripes", "2021.r2.1", folioCluster, folioNamespace, [modRegistrationJob])
+folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.2",
+    folioCluster, folioNamespace, [modRegistrationJob])
 
 // // TODO Determine if the Helm chart takes care of the following:
 // // Create hazelcast service account

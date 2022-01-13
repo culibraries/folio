@@ -199,6 +199,8 @@ export module deploy {
 
     export function stripes(repository:string, tag: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
+
+        // Platform complete is the somewhat oddly named folio-helm chart for deploying stripes.
         const chartName = "platform-complete";
 
         const values = {
