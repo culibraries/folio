@@ -25,6 +25,10 @@ COPY --from=stripes_build /etc/folio/stripes/yarn.lock /usr/share/nginx/html/yar
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY entrypoint.sh /usr/bin/entrypoint.sh
 
-RUN ["chmod", "+x", "/usr/bin/entrypoint.sh"]
+# TODO Connect to the container and see that these files are actually copied
+# BC it's saying "permission-denied: unknown".
+# Can connect like this
 
-ENTRYPOINT ["/usr/bin/entrypoint.sh"]
+# RUN ["chmod", "+x", "/usr/bin/entrypoint.sh"]
+
+# ENTRYPOINT ["/usr/bin/entrypoint.sh"]

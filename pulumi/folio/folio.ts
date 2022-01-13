@@ -174,7 +174,7 @@ export module deploy {
             // service: {
             //     type: "LoadBalancer",
             //     // TODO Will probably want to make this 443.
-            //     port: 80,
+            //     port: 9130,
             //     containerPort: 9130
             // },
 
@@ -194,8 +194,52 @@ export module deploy {
             }
         }
 
-        return deployModuleWithHelmChart(module, cluster, namespace, values, dependsOn);
+        return deployHelmChart(module.name, cluster, namespace, values, dependsOn);
     }
+
+    export function stripes(repository:string, tag: string, cluster: eks.Cluster,
+        namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
+        const chartName = "platform-complete";
+
+        const values = {
+            // Get the image from the version associated with the release.
+            image: {
+                tag: tag,
+                repository: repository
+            },
+
+            // TODO What is this going to be? Where is the folio-helm repo referred to? And how is that
+            // different from the container repo.
+            fullnameOverride: chartName,
+
+            // TODO Turn this back on after figuring out how to secure it. It is known to work at port 80.
+            // For how to enable SSL see https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/.
+            // service: {
+            //     type: "LoadBalancer",
+            //     // TODO Will probably want to make this 443.
+            //     port: 80,
+            //     containerPort: 9130
+            // },
+
+            // The postJob value in the folio-helm chart is very unreliable. We don't use it and
+            // instead create our own job that runs after all modules have been installed.
+            postJob: {
+                enabled: false
+            },
+
+            // resources: {
+            //     limits: {
+            //         memory: ""
+            //     },
+            //     requests: {
+            //         memory: ""
+            //     }
+            // }
+        }
+
+        return deployHelmChart(chartName, cluster, namespace, values, dependsOn);
+    }
+
 
     /**
      * Deploys the provided list of folio modules. This should be used for any module
@@ -244,7 +288,7 @@ export module deploy {
             }
 
             const moduleRelease =
-                deployModuleWithHelmChart(module, cluster, namespace, values, [okapiRelease]);
+                deployHelmChart(module.name, cluster, namespace, values, [okapiRelease]);
             moduleReleases.push(moduleRelease);
         }
 
@@ -359,17 +403,17 @@ export module deploy {
             });
     }
 
-    function deployModuleWithHelmChart(module: FolioModule,
+    function deployHelmChart(chartName: string,
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
         values: object,
         dependsOn?: Resource[]): k8s.helm.v3.Release {
-        return new k8s.helm.v3.Release(module.name, {
+        return new k8s.helm.v3.Release(chartName, {
             namespace: namespace.id,
 
-            name: module.name,
+            name: chartName,
 
-            chart: module.name,
+            chart: chartName,
 
             repositoryOpts: {
                 repo: "https://folio-org.github.io/folio-helm/",
