@@ -75,6 +75,13 @@ export module deploy {
                 toPort: 443,
                 protocol: "tcp",
                 cidrBlocks: ["0.0.0.0/0"]
+            },
+            {
+                description: "Allow inbound traffic to okapi",
+                fromPort: 9130,
+                toPort: 9130,
+                protocol: "tcp",
+                cidrBlocks: ["0.0.0.0/0"]
             }, {
                 description: "Allow inbound traffic on 9000 for edgeconexion",
                 fromPort: 9000,
@@ -86,14 +93,14 @@ export module deploy {
                 fromPort: 5432,
                 toPort: 5432,
                 protocol: "tcp",
-                cidrBlocks: ["0.0.0.0/0"]
+                cidrBlocks: [clusterCidrBlock]
             }],
             egress: [{
                 description: "Allow outbound traffic",
                 fromPort: 0,
                 toPort: 0,
                 protocol: "-1",
-                cidrBlocks: [clusterCidrBlock]
+                cidrBlocks: ["0.0.0.0/0"]
             }]
         });
 

@@ -290,15 +290,6 @@ const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
-// TODO Use the constructor for folio module or add other required props here.
-// Or maybe just create create its own function to deploy it since it is sort of its
-// own animal. Its also not a module so a lot of things are different about it.
-// Create a reference to the stripes module,
-// const stripes: FolioModule = {
-//     name: "stripes",
-//     version: "2021.r2.2"
-// }
-
 // Deploy okapi first, being sure that other dependencies have deployed first.
 // TODO Add the dbCreateJob back in here as a dep.
 const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster,
@@ -318,7 +309,7 @@ const registrationInitContainers: input.core.v1.Container[] =
 // set to false, this will apply all permissions to the superuser.
 const superUserName = config.requireSecret("superuser-name");
 const superUserPassword = config.requireSecret("superuser-password");
-folio.deploy.registerModulesAndBootstrapSuperuser
+const modRegistrationJob = folio.deploy.registerModulesAndBootstrapSuperuser
     ("mod-reg-and-bootstrap-superuser",
     pulumi.interpolate`${superUserName}`,
     pulumi.interpolate`${superUserPassword}`,
@@ -327,6 +318,9 @@ folio.deploy.registerModulesAndBootstrapSuperuser
     folioCluster,
     registrationInitContainers,
     moduleReleases);
+
+folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.2",
+    folioCluster, folioNamespace, [modRegistrationJob])
 
 // // TODO Determine if the Helm chart takes care of the following:
 // // Create hazelcast service account
