@@ -153,12 +153,13 @@ export module deploy {
     /**
      * Deploy okapi along with a LoadBalancer service to handle external traffic.
      * @param module The module object for okapi.
+     * @param certArn The certificate ARN of the certificate that will be used to secure traffic.
      * @param cluster A reference to the k8s cluster.
      * @param namespace A reference to the k8s namespace.
      * @param dependsOn The resources that okapi depends on being live before deploying.
      * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(module: FolioModule, cluster: eks.Cluster,
+    export function okapi(module: FolioModule, certArn:string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
         const values = {
             // Get the image from the version associated with the release.
@@ -169,14 +170,20 @@ export module deploy {
 
             fullnameOverride: module.name,
 
-            // TODO Turn this back on after figuring out how to secure it. It is known to work at port 80.
-            // For how to enable SSL see https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/.
-            // service: {
-            //     type: "LoadBalancer",
-            //     // TODO Will probably want to make this 443.
-            //     port: 9130,
-            //     containerPort: 9130
-            // },
+            // For documentation on the annotations and other configuration options see:
+            // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
+            service: {
+                type: "LoadBalancer",
+                port: 9130,
+                containerPort: 9130, // Maps to targetPort in the spec.ports array in folio-helm.
+                annotations: {
+                    "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "http",
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": `${certArn}`,
+                    // Only run ssl on port named http. This is the only port name that folio-helm
+                    // makes available.
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": "http"
+                }
+            },
 
             // The postJob value in the folio-helm chart is very unreliable. We don't use it and
             // instead create our own job that runs after all modules have been installed.
@@ -197,7 +204,7 @@ export module deploy {
         return deployHelmChart(module.name, cluster, namespace, values, dependsOn);
     }
 
-    export function stripes(repository:string, tag: string, cluster: eks.Cluster,
+    export function stripes(repository:string, tag: string, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
 
         // Platform complete is the somewhat oddly named folio-helm chart for deploying stripes.
@@ -210,18 +217,22 @@ export module deploy {
                 repository: repository
             },
 
-            // TODO What is this going to be? Where is the folio-helm repo referred to? And how is that
-            // different from the container repo.
             fullnameOverride: chartName,
 
-            // TODO Turn this back on after figuring out how to secure it. It is known to work at port 80.
-            // For how to enable SSL see https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/.
-            // service: {
-            //     type: "LoadBalancer",
-            //     // TODO Will probably want to make this 443.
-            //     port: 80,
-            //     containerPort: 9130
-            // },
+            // For documentation on the annotations and other configuration options see:
+            // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
+            service: {
+                type: "LoadBalancer",
+                port: 443,
+                containerPort: 80,
+                annotations: {
+                    "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "http",
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": `${certArn}`,
+                    // Only run ssl on port named http. This is the only port name that folio-helm
+                    // makes available.
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": "http"
+                }
+            },
 
             // The postJob value in the folio-helm chart is very unreliable. We don't use it and
             // instead create our own job that runs after all modules have been installed.

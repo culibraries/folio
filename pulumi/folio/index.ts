@@ -290,9 +290,13 @@ const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
+// TODO Get this from a configuration entry.
+// TODO This is currently the ARN of the cublcta.com domain.
+const certArn:string = "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-0b6e-4698-9c31-504c84a979ba";
+
 // Deploy okapi first, being sure that other dependencies have deployed first.
 // TODO Add the dbCreateJob back in here as a dep.
-const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, folioCluster,
+const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, certArn, folioCluster,
     folioNamespace, [pgCluster, ...clusterInstances, secret, configMap, kafkaInstance, dbCreateJob]);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
@@ -319,7 +323,8 @@ const modRegistrationJob = folio.deploy.registerModulesAndBootstrapSuperuser
     registrationInitContainers,
     moduleReleases);
 
-folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.2",
+// NOTE This deploys with the name "platform-complete".
+folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.2", certArn,
     folioCluster, folioNamespace, [modRegistrationJob])
 
 // // TODO Determine if the Helm chart takes care of the following:
