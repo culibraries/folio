@@ -324,7 +324,7 @@ const modRegistrationJob = folio.deploy.registerModulesAndBootstrapSuperuser
     moduleReleases);
 
 // NOTE This deploys with the name "platform-complete".
-folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.2", certArn,
+folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
     folioCluster, folioNamespace, [modRegistrationJob])
 
 // // TODO Determine if the Helm chart takes care of the following:

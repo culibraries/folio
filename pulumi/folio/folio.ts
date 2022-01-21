@@ -83,10 +83,7 @@ export module prepare {
         var initContainers: input.core.v1.Container[] = [];
 
         for (const module of modules) {
-            // We don't want to include okapi here since we're registering modules to it.
-            if (module.name !== "okapi") {
-                initContainers.push(createInitContainerForModule(module));
-            }
+            initContainers.push(createInitContainerForModule(module));
         }
 
         return initContainers;
@@ -174,6 +171,9 @@ export module deploy {
             // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
             service: {
                 type: "LoadBalancer",
+                // This port must be 9130 since that is where the other pods in the cluster
+                // expect OKAPI to be available. This means that all external requests to okapi
+                // must have the port number on the URL.
                 port: 9130,
                 containerPort: 9130, // Maps to targetPort in the spec.ports array in folio-helm.
                 annotations: {
@@ -267,7 +267,8 @@ export module deploy {
         namespace: k8s.core.v1.Namespace,
         okapiRelease: k8s.helm.v3.Release): Resource[] {
         console.log("Removing okapi from list of modules since it should have already been deployed");
-        toDeploy = toDeploy.filter(module => module.name !== "okapi");
+
+        toDeploy = toDeploy.filter(module => module.name !== "okapi").filter(module => !module.name.startsWith("folio_"));
 
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
 

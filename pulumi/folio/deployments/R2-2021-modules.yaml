@@ -1,14 +1,3 @@
-# Set this to 'true' the first time the deployment is done. Then make sure to set it to
-# false when updating the deployment with changes. See the documentation for
-# folio.deploy.registerModulesAndBootstrapSuperuser for how to fix things if you
-# accidentally run it twice with 'true'. If you run it the first time with 'false'
-# comment out the create superuser code from index.ts, run pulumi up to delete the
-# resource, comment in create superuser, and then run it with 'true'.
-# TODO I don't think the above comment is true now that we are doing the 
-createSuperuser: false
-# Generate this list from platform-complete/install.json from the folio org github.
-# This list was generated from the R2-2021 branch (Iris).
-# TODO Write a script to perform the transform.
 modules:
   - mod-finance-storage-7.1.2
   - mod-orders-storage-13.0.5

@@ -1,7 +1,6 @@
 FROM node:15-alpine as stripes_build
 
-# TODO I think this needs to be our actual public URL for okapi.
-ARG OKAPI_URL=http://okapi:9130
+ARG OKAPI_URL=https://folio-iris-okapi.cublcta.com:9130
 ARG TENANT_ID=cubl
 
 RUN mkdir -p /etc/folio/stripes
