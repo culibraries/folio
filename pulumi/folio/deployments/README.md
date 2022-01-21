@@ -6,4 +6,4 @@ There is also a script here (json2yaml.ts) which can convert the JSON list of mo
 
 Once the output file has served its purpose it can be deleted.
 
-To run compile the json2yaml.ts file do `tsc json2yaml.ts`. To run it do `node json2yaml.js`. If you don't have `tsc` (the typescript compiler) do `npm install typescript -g`.
+To compile the json2yaml.ts file do `tsc json2yaml.ts`. To run it do `node json2yaml.js`. If you don't have `tsc` (the typescript compiler) do `npm install typescript -g`.
