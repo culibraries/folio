@@ -292,7 +292,7 @@ export module deploy {
         // Filter out okapi and the front-end modules. Okapi is deployed separately
         // prior to deploying the modules. Also, the front-end modules are only relevant
         // later when they need to be registered to okapi. In other words, they are not
-        // pods that get installed, like the regular modules.
+        // containers that get deployed, like the regular modules.
         toDeploy = toDeploy.filter(module => module.name !== "okapi")
             .filter(module => !module.name.startsWith("folio_"));
 
