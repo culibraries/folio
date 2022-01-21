@@ -78,21 +78,44 @@ export module prepare {
         fs.writeFileSync(deploymentConfigFilePath, YAML.stringify(parsed));
     }
 
-    export function moduleRegistrationInitContainers(modules: FolioModule[]): input.core.v1.Container[] {
+    export function moduleRegistrationInitContainers(modules: FolioModule[], fd:FolioDeployment): input.core.v1.Container[] {
+        var imageName = "folioci/folio-okapi-registration";
+
+        // Filter out the frontend items. We're going to register those
+        // with a job using a script from folio-helm after we grab the actual mods.
+        modules = modules.filter(module => !module.name.startsWith("folio_"));
 
         var initContainers: input.core.v1.Container[] = [];
 
         for (const module of modules) {
-            initContainers.push(createInitContainerForModule(module));
+            initContainers.push(createInitContainerForModule(module, imageName));
         }
+
+        // Now that we've grabbed the actual mod modules, create one last
+        // init container to register the front end modules. There are probably other
+        // ways to do this, but this is the way folio-helm does it.
+        // See https://github.com/folio-org/folio-helm/blob/master/docker/folio-okapi-registration/init.sh
+        const frontendModInitContainer = {
+            name: "register-module-frontend",
+            image: imageName,
+            env: [
+                { name: "OKAPI_URL", value: fd.okapiUrl },
+                { name: "MODULE_NAME", value: "platform-complete" },
+                { name: "TENANT_ID", value: fd.tenantId },
+                { name: "SAMPLE_DATA", value: `${fd.loadReferenceData}` },
+                { name: "REF_DATA", value: `${fd.loadSampleData}` }
+            ],
+        }
+
+        initContainers.push(frontendModInitContainer);
 
         return initContainers;
     }
 
-    function createInitContainerForModule(m: FolioModule): input.core.v1.Container {
+    function createInitContainerForModule(m: FolioModule, image: string): input.core.v1.Container {
         return {
             name: `register-module-${m.name}`,
-            image: "folioci/folio-okapi-registration",
+            image: image,
             env: [
                 { name: "OKAPI_URL", value: m.okapiUrl },
                 { name: "MODULE_NAME", value: m.name },
@@ -253,10 +276,10 @@ export module deploy {
         return deployHelmChart(chartName, cluster, namespace, values, dependsOn);
     }
 
-
     /**
      * Deploys the provided list of folio modules. This should be used for any module
-     * that requires a ClusterIp type of service (so not okapi, and not an edge module).
+     * that requires a ClusterIp type of service (so not okapi, and probably not an edge
+     * module).
      * @param cluster A reference to the k8s cluster.
      * @param namespace A reference to the k8s namespace.
      * @param toDeploy The modules to deploy.
@@ -268,7 +291,8 @@ export module deploy {
         okapiRelease: k8s.helm.v3.Release): Resource[] {
         console.log("Removing okapi from list of modules since it should have already been deployed");
 
-        toDeploy = toDeploy.filter(module => module.name !== "okapi").filter(module => !module.name.startsWith("folio_"));
+        toDeploy = toDeploy.filter(module => module.name !== "okapi")
+            .filter(module => !module.name.startsWith("folio_"));
 
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
 

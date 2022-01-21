@@ -304,7 +304,7 @@ const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespac
 
 // Prepare a list of containers which will perform the module registration in sequence.
 const registrationInitContainers: input.core.v1.Container[] =
-    folio.prepare.moduleRegistrationInitContainers(modules);
+    folio.prepare.moduleRegistrationInitContainers(modules, folioDeployment);
 
 // Run the module registration containers as init containers for the final create/
 // update super user job. This final job will attempt to create the

@@ -4,7 +4,7 @@
 # accidentally run it twice with 'true'. If you run it the first time with 'false'
 # comment out the create superuser code from index.ts, run pulumi up to delete the
 # resource, comment in create superuser, and then run it with 'true'.
-# TODO I don't think the above comment is true now that we are doing the 
+# TODO I don't think the above comment is true now...
 createSuperuser: false
 # Generate this list from platform-complete/install.json from the folio org github.
 # This list was generated from the R2-2021 branch (Iris).
@@ -47,9 +47,9 @@ modules:
   - folio_circulation-log-1.2.0
   - mod-courses-1.4.3
   - folio_courses-4.2.1
-  - mod-service-interaction-1.0.0
+  #- mod-service-interaction-1.0.0
   - folio_dashboard-1.0.0
-  - mod-data-export-4.1.2
+  #- mod-data-export-4.1.2
   - folio_data-export-4.1.0
   - mod-data-import-converter-storage-1.11.4
   - mod-source-record-manager-3.1.4
@@ -66,7 +66,7 @@ modules:
   - mod-invoice-storage-5.1.2
   - mod-invoice-5.1.11
   - folio_finance-2.4.2
-  - mod-search-1.4.4
+  #- mod-search-1.4.4
   - folio_inventory-es-6.4.0
   - folio_inventory-7.1.4
   - mod-organizations-1.3.1
@@ -111,26 +111,27 @@ modules:
   - mod-login-saml-2.3.2
   - folio_tenant-settings-6.1.2
   - folio_users-6.1.4
-  - edge-caiasoft-1.0.2
+  #- edge-caiasoft-1.0.2
   - mod-copycat-1.1.2
-  - edge-connexion-1.0.4
-  - edge-dematic-1.2.4
+  #- edge-connexion-1.0.4
+  #- edge-dematic-1.2.4
   - mod-ncip-1.8.1
-  - edge-ncip-1.6.2
+  #- edge-ncip-1.6.2
   - mod-gobi-2.1.2
-  - edge-orders-2.4.2
-  - edge-oai-pmh-2.3.3
+  #- edge-orders-2.4.2
+  #- edge-oai-pmh-2.3.3
   - mod-patron-4.5.3
-  - edge-patron-4.5.2
+  #- edge-patron-4.5.2
   - mod-rtac-3.0.3
-  - edge-rtac-2.2.2
-  - edge-sip2-2.1.2
+  #- edge-rtac-2.2.2
+  # TODO the '2' here breaks our regex
+  #- sip2-2.1.2
   - okapi-4.11.1
   - mod-graphql-1.9.0
   - mod-z3950-2.4.0
   - mod-ebsconet-1.0.3
   - mod-codex-inventory-2.0.1
   - mod-codex-ekb-1.9.1
-  - mod-data-export-worker-1.1.8
+  #- mod-data-export-worker-1.1.8
   - mod-erm-usage-harvester-3.1.4
   - mod-user-import-3.6.3
