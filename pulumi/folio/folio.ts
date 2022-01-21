@@ -81,40 +81,25 @@ export module prepare {
     export function moduleRegistrationInitContainers(modules: FolioModule[], fd:FolioDeployment): input.core.v1.Container[] {
         var imageName = "folioci/folio-okapi-registration";
 
-        // Filter out the frontend items. We're going to register those
-        // with a job using a script from folio-helm after we grab the actual mods.
-        modules = modules.filter(module => !module.name.startsWith("folio_"));
-
         var initContainers: input.core.v1.Container[] = [];
 
         for (const module of modules) {
             initContainers.push(createInitContainerForModule(module, imageName));
         }
 
-        // Now that we've grabbed the actual mod modules, create one last
-        // init container to register the front end modules. There are probably other
-        // ways to do this, but this is the way folio-helm does it.
-        // See https://github.com/folio-org/folio-helm/blob/master/docker/folio-okapi-registration/init.sh
-        const frontendModInitContainer = {
-            name: "register-module-frontend",
-            image: imageName,
-            env: [
-                { name: "OKAPI_URL", value: fd.okapiUrl },
-                { name: "MODULE_NAME", value: "platform-complete" },
-                { name: "TENANT_ID", value: fd.tenantId },
-                { name: "SAMPLE_DATA", value: `${fd.loadReferenceData}` },
-                { name: "REF_DATA", value: `${fd.loadSampleData}` }
-            ],
-        }
-
-        initContainers.push(frontendModInitContainer);
-
         return initContainers;
     }
 
     function createInitContainerForModule(m: FolioModule, image: string): input.core.v1.Container {
         return {
-            name: `register-module-${m.name}`,
+            // NOTE folio-helm has a mechanism for registering the front-end mods. Don't use it!
+            // The it only installs the snapshot versions of these mods. We need specific
+            // versions of these modules, so we register them using our deployment module
+            // list which is generated for the release we care about.
+
+            // The initContainers spec doesn't allow underscores in the names, so replace that
+            // with a dash. Front-end mods have an underscore in their names.
+            name: `register-module-${m.name.replace('_','-')}`,
             image: image,
             env: [
                 { name: "OKAPI_URL", value: m.okapiUrl },
@@ -173,7 +158,7 @@ export module deploy {
     /**
      * Deploy okapi along with a LoadBalancer service to handle external traffic.
      * @param module The module object for okapi.
-     * @param certArn The certificate ARN of the certificate that will be used to secure traffic.
+     * @param certArn The AWS certificate ARN of the certificate that will be used to secure traffic.
      * @param cluster A reference to the k8s cluster.
      * @param namespace A reference to the k8s namespace.
      * @param dependsOn The resources that okapi depends on being live before deploying.
@@ -227,6 +212,19 @@ export module deploy {
         return deployHelmChart(module.name, cluster, namespace, values, dependsOn);
     }
 
+    /**
+     * Deploys stripes using a helm chart. Unlike our other charts, which pull their containers
+     * from the folio container registry, this container must be built and deployed to a self-hosted
+     * container repository. This also deploys a LoadBalancer service which provides external
+     * access to the container.
+     * @param repository The container repository to get the container from.
+     * @param tag The tag of the build to use for the container.
+     * @param certArn The AWS ARN of the cert to bind to the service.
+     * @param cluster A reference to the cluster where we are deploying.
+     * @param namespace A reference to the namespace.
+     * @param dependsOn Any dependencies.
+     * @returns A reference to the helm release for this.
+     */
     export function stripes(repository:string, tag: string, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
 
@@ -299,7 +297,6 @@ export module deploy {
         const moduleReleases: Resource[] = [];
 
         for (const module of toDeploy) {
-            const chartName = module.name
             const values = {
                 // Get the image from the version associated with the release.
                 image: {
@@ -346,9 +343,7 @@ export module deploy {
      * superuser does not yet exist. And it should only be done once for a deployment.
      * Attempting to create the superuser twice for a deployment will put the deployment
      * in an unstable state and mod-users-bl, mod-authtoken and mod-login-saml will have
-     * to be redeployed (removed and re-added) if that mistake is made. This can be done by
-     * commenting these modules out of the config file, running pulumi up, and commenting
-     * them in again and running pulumi up again.
+     * to be redeployed if that mistake is made.
      *
      * This job will always update the superuser's permissions based on the modules
      * installed so it should be run with the value of createSuperuser: false anytime
