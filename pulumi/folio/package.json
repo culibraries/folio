@@ -1,7 +1,7 @@
 {
     "name": "folio",
     "devDependencies": {
-        "@types/node": "^14"
+        "@types/node": "^14.18.9"
     },
     "dependencies": {
         "@pulumi/aws": "^4.0.0",

@@ -265,10 +265,6 @@ Often when first deploying something via helm via pulumi, the deployment may fai
 helm delete <name> --namespace <kubernetes namespace>
 ```
 
-## How to fully delete the database to start from scratch
-
-Log into the database from psql and drop the folio database.
-
 ## Working with jobs
 We are using kubernetes jobs in a number of places:
 * To run certain database operations
@@ -283,9 +279,6 @@ Once a job has run successfully, as far as pulumi is concerned, it is done and w
 
 The idea of jobs that run every time `pulumi up` runs is a bit foreign to pulumi. As a workaround we may want to script our invocation of pulumi and do `pulumi destroy --target <job to destroy>` to first remove a resource before running `pulumi up`.
 
-## In-cluster postgres
-We are currently deploying postgres in the cluster via a helm release. If you connect to the the container running postgres and look at the environment you will notice that the db hostname is `postgres-postgres-0`. This is not correct. The actual hostname that is visible to other cluster pods is `postgresql`. This is also the value of `DB_HOST` which is encoded in our `db-connect-modules` secret and available as when you view `pulumi config --show-secrets`.
-
 ## Connecting to the cluster before it is exposed
 It is highly useful to be able to connect to okapi before it is exposed. Do this by port forwarding your localhost to okapi.
 
@@ -293,6 +286,26 @@ It is highly useful to be able to connect to okapi before it is exposed. Do this
 kubectl -n <namespace> port-forward <okapi pod name> 9000:9130
 ```
 Then try: `curl http://localhost:9000/_/proxy/tenants/cubl/modules` to see what modules have been successfully enabled for the tenant.
+
+## Hooking up a custom domain and SSL
+Okapi and stripes are each open to the outside world through a k8s LoadBalancer service. Okapi is exposed on port 9130 which is important because that's where in-cluster requests to okapi expect it to be. Stripes is exposed on port 443. These load balancer services each receive an external hostname which is available when you do `describe service`. Hitting this domain directly will time out since each LoadBalancer has annotations which enforce SSL, which requires a certificate.
+
+These are the steps for getting it all to work:
+1. Get the ARN of the certificate you wish to use from the AWS certificate manager.
+2. Assign this to the variable in index.ts for the cert ARN.
+3. Redeploy by running `pulumi up`. The kubernetes deployments that use this ARN will update. Verify this by doing `describe service`. The annotation should now contain the cert ARN.
+4. Go to route 53 in the AWS console.
+5. Click on Hosted Zones and add an entry in cublcta.com like folio-iris.cublcta.com. Add a second one for okapi.
+6. Paste the host from each k8s service that you got when doing `describe service` in the Value field of each hosted zone entry.
+7. Choose CNAME for record type.
+8. Rebuild the stripes container with the new okapi URL. See the Dockerfile and the `OKAPI_URL` variable there. See the instructions for building this container in /containers/folio/stripes.
+9. Change the tag in index.js for this container. Run `pulumi up`. Verify that the correctly tagged container is loaded in the pod by doing `describe pod`.
+
+### Using a colorado.edu domain
+DNS for a colorado.edu domain isn't handled through our account's route 53. We do however manage the certificate in ACM for these subdomains so the ARN for <our subdomain>.colorado.edu is in ACM. Setting up the DNS record with campus OIT to this colorado.edu subomain will need to be similar to what we do for cublcta.com.
+
+### Swapping out deployments
+TODO Changing the route 53 or the DNS entry that is mapping to the two LoadBalancer endpoints should be all that is necessary. However, for this type of swap to work, we would need for the stripes okapi url to detect this change update automatically.
 
 ## References
 * [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)

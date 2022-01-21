@@ -79,23 +79,28 @@ export module prepare {
     }
 
     export function moduleRegistrationInitContainers(modules: FolioModule[]): input.core.v1.Container[] {
+        var imageName = "folioci/folio-okapi-registration";
 
         var initContainers: input.core.v1.Container[] = [];
 
         for (const module of modules) {
-            // We don't want to include okapi here since we're registering modules to it.
-            if (module.name !== "okapi") {
-                initContainers.push(createInitContainerForModule(module));
-            }
+            initContainers.push(createInitContainerForModule(module, imageName));
         }
 
         return initContainers;
     }
 
-    function createInitContainerForModule(m: FolioModule): input.core.v1.Container {
+    function createInitContainerForModule(m: FolioModule, image: string): input.core.v1.Container {
         return {
-            name: `register-module-${m.name}`,
-            image: "folioci/folio-okapi-registration",
+            // NOTE folio-helm has a mechanism for registering the front-end mods. Don't use it!
+            // The it only installs the snapshot versions of these mods. We need specific
+            // versions of these modules, so we register them using our deployment module
+            // list which is generated for the release we care about.
+
+            // The initContainers spec doesn't allow underscores in the names, so replace that
+            // with a dash. Front-end mods have an underscore in their names.
+            name: `register-module-${m.name.replace('_','-')}`,
+            image: image,
             env: [
                 { name: "OKAPI_URL", value: m.okapiUrl },
                 { name: "MODULE_NAME", value: m.name },
@@ -153,12 +158,13 @@ export module deploy {
     /**
      * Deploy okapi along with a LoadBalancer service to handle external traffic.
      * @param module The module object for okapi.
+     * @param certArn The AWS certificate ARN of the certificate that will be used to secure traffic.
      * @param cluster A reference to the k8s cluster.
      * @param namespace A reference to the k8s namespace.
      * @param dependsOn The resources that okapi depends on being live before deploying.
      * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(module: FolioModule, cluster: eks.Cluster,
+    export function okapi(module: FolioModule, certArn:string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
         const values = {
             // Get the image from the version associated with the release.
@@ -169,14 +175,23 @@ export module deploy {
 
             fullnameOverride: module.name,
 
-            // TODO Turn this back on after figuring out how to secure it. It is known to work at port 80.
-            // For how to enable SSL see https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/.
-            // service: {
-            //     type: "LoadBalancer",
-            //     // TODO Will probably want to make this 443.
-            //     port: 9130,
-            //     containerPort: 9130
-            // },
+            // For documentation on the annotations and other configuration options see:
+            // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
+            service: {
+                type: "LoadBalancer",
+                // This port must be 9130 since that is where the other pods in the cluster
+                // expect OKAPI to be available. This means that all external requests to okapi
+                // must have the port number on the URL.
+                port: 9130,
+                containerPort: 9130, // Maps to targetPort in the spec.ports array in folio-helm.
+                annotations: {
+                    "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "http",
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": `${certArn}`,
+                    // Only run ssl on port named http. This is the only port name that folio-helm
+                    // makes available.
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": "http"
+                }
+            },
 
             // The postJob value in the folio-helm chart is very unreliable. We don't use it and
             // instead create our own job that runs after all modules have been installed.
@@ -197,7 +212,20 @@ export module deploy {
         return deployHelmChart(module.name, cluster, namespace, values, dependsOn);
     }
 
-    export function stripes(repository:string, tag: string, cluster: eks.Cluster,
+    /**
+     * Deploys stripes using a helm chart. Unlike our other charts, which pull their containers
+     * from the folio container registry, this container must be built and deployed to a self-hosted
+     * container repository. This also deploys a LoadBalancer service which provides external
+     * access to the container.
+     * @param repository The container repository to get the container from.
+     * @param tag The tag of the build to use for the container.
+     * @param certArn The AWS ARN of the cert to bind to the service.
+     * @param cluster A reference to the cluster where we are deploying.
+     * @param namespace A reference to the namespace.
+     * @param dependsOn Any dependencies.
+     * @returns A reference to the helm release for this.
+     */
+    export function stripes(repository:string, tag: string, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
 
         // Platform complete is the somewhat oddly named folio-helm chart for deploying stripes.
@@ -210,18 +238,22 @@ export module deploy {
                 repository: repository
             },
 
-            // TODO What is this going to be? Where is the folio-helm repo referred to? And how is that
-            // different from the container repo.
             fullnameOverride: chartName,
 
-            // TODO Turn this back on after figuring out how to secure it. It is known to work at port 80.
-            // For how to enable SSL see https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/.
-            // service: {
-            //     type: "LoadBalancer",
-            //     // TODO Will probably want to make this 443.
-            //     port: 80,
-            //     containerPort: 9130
-            // },
+            // For documentation on the annotations and other configuration options see:
+            // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
+            service: {
+                type: "LoadBalancer",
+                port: 443,
+                containerPort: 80,
+                annotations: {
+                    "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "http",
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": `${certArn}`,
+                    // Only run ssl on port named http. This is the only port name that folio-helm
+                    // makes available.
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": "http"
+                }
+            },
 
             // The postJob value in the folio-helm chart is very unreliable. We don't use it and
             // instead create our own job that runs after all modules have been installed.
@@ -242,10 +274,10 @@ export module deploy {
         return deployHelmChart(chartName, cluster, namespace, values, dependsOn);
     }
 
-
     /**
      * Deploys the provided list of folio modules. This should be used for any module
-     * that requires a ClusterIp type of service (so not okapi, and not an edge module).
+     * that requires a ClusterIp type of service (so not okapi, and probably not an edge
+     * module).
      * @param cluster A reference to the k8s cluster.
      * @param namespace A reference to the k8s namespace.
      * @param toDeploy The modules to deploy.
@@ -256,14 +288,19 @@ export module deploy {
         namespace: k8s.core.v1.Namespace,
         okapiRelease: k8s.helm.v3.Release): Resource[] {
         console.log("Removing okapi from list of modules since it should have already been deployed");
-        toDeploy = toDeploy.filter(module => module.name !== "okapi");
+
+        // Filter out okapi and the front-end modules. Okapi is deployed separately
+        // prior to deploying the modules. Also, the front-end modules are only relevant
+        // later when they need to be registered to okapi. In other words, they are not
+        // containers that get deployed, like the regular modules.
+        toDeploy = toDeploy.filter(module => module.name !== "okapi")
+            .filter(module => !module.name.startsWith("folio_"));
 
         console.log(`Attempting to deploy ${toDeploy.length} modules`);
 
         const moduleReleases: Resource[] = [];
 
         for (const module of toDeploy) {
-            const chartName = module.name
             const values = {
                 // Get the image from the version associated with the release.
                 image: {
@@ -310,9 +347,7 @@ export module deploy {
      * superuser does not yet exist. And it should only be done once for a deployment.
      * Attempting to create the superuser twice for a deployment will put the deployment
      * in an unstable state and mod-users-bl, mod-authtoken and mod-login-saml will have
-     * to be redeployed (removed and re-added) if that mistake is made. This can be done by
-     * commenting these modules out of the config file, running pulumi up, and commenting
-     * them in again and running pulumi up again.
+     * to be redeployed if that mistake is made.
      *
      * This job will always update the superuser's permissions based on the modules
      * installed so it should be run with the value of createSuperuser: false anytime
