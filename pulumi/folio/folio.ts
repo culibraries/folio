@@ -78,7 +78,7 @@ export module prepare {
         fs.writeFileSync(deploymentConfigFilePath, YAML.stringify(parsed));
     }
 
-    export function moduleRegistrationInitContainers(modules: FolioModule[], fd:FolioDeployment): input.core.v1.Container[] {
+    export function moduleRegistrationInitContainers(modules: FolioModule[]): input.core.v1.Container[] {
         var imageName = "folioci/folio-okapi-registration";
 
         var initContainers: input.core.v1.Container[] = [];
@@ -289,6 +289,10 @@ export module deploy {
         okapiRelease: k8s.helm.v3.Release): Resource[] {
         console.log("Removing okapi from list of modules since it should have already been deployed");
 
+        // Filter out okapi and the front-end modules. Okapi is deployed separately
+        // prior to deploying the modules. Also, the front-end modules are only relevant
+        // later when they need to be registered to okapi. In other words, they are not
+        // pods that get installed, like the regular modules.
         toDeploy = toDeploy.filter(module => module.name !== "okapi")
             .filter(module => !module.name.startsWith("folio_"));
 

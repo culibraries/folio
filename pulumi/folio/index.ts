@@ -290,8 +290,10 @@ const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 // Get a reference to the okapi module.
 const okapi: FolioModule = util.getModuleByName("okapi", modules);
 
-// TODO Get this from a configuration entry.
-// TODO This is currently the ARN of the cublcta.com domain.
+// TODO Maybe get this from a configuration entry.
+// TODO This is currently the ARN of the cublcta.com domain. To swap out
+// a different certificate for a different domain, change this value and run
+// pululmi up for the cluster.
 const certArn:string = "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-0b6e-4698-9c31-504c84a979ba";
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
@@ -304,7 +306,7 @@ const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespac
 
 // Prepare a list of containers which will perform the module registration in sequence.
 const registrationInitContainers: input.core.v1.Container[] =
-    folio.prepare.moduleRegistrationInitContainers(modules, folioDeployment);
+    folio.prepare.moduleRegistrationInitContainers(modules);
 
 // Run the module registration containers as init containers for the final create/
 // update super user job. This final job will attempt to create the
