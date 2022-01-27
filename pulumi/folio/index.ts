@@ -102,8 +102,8 @@ export const folioNamespaceName = folioNamespace.metadata.name;
 const releaseFilePath = "./deployments/R2-2021.yaml";
 const tenant = "cubl";
 const okapiUrl = "http://okapi:9130";
-const loadRefData = false;
-const loadSampleData = false;
+const loadRefData = true;
+const loadSampleData = true;
 const containerRepo = "folioorg";
 const folioDeployment = new FolioDeployment(tenant,
     releaseFilePath,
@@ -120,7 +120,6 @@ const appLabels = { appClass: appName };
 // These secrets have been set in the stack using the pulumi command line.
 const config = new pulumi.Config();
 
-const inClusterDbHost = config.requireSecret("db-host");
 const dbAdminUser = config.requireSecret("db-admin-user");
 const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
@@ -329,6 +328,6 @@ const modRegistrationJob = folio.deploy.registerModulesAndBootstrapSuperuser
 folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
     folioCluster, folioNamespace, [modRegistrationJob])
 
-// // TODO Determine if the Helm chart takes care of the following:
-// // Create hazelcast service account
-// // Create hazelcast configmap
+// TODO Determine if the Helm chart takes care of the following:
+// Create hazelcast service account
+// Create hazelcast configmap

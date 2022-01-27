@@ -429,7 +429,7 @@ export module deploy {
                         restartPolicy: "Never",
                     },
                 },
-                backoffLimit: 1
+                backoffLimit: 0
             }
         }, {
                 provider: cluster.provider,
