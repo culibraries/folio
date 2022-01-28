@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as YAML from 'yaml';
 
-const release = fs.readFileSync('./R2-2021-install.json', 'utf8');
+const release = fs.readFileSync('./R2-2021-source.json', 'utf8');
 console.log("JSON input:\n")
 console.log(release);
 const objs = JSON.parse(release);

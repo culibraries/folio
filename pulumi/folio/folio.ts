@@ -78,19 +78,19 @@ export module prepare {
         fs.writeFileSync(deploymentConfigFilePath, YAML.stringify(parsed));
     }
 
-    export function moduleRegistrationInitContainers(modules: FolioModule[]): input.core.v1.Container[] {
+    export function jobContainers(modules: FolioModule[]): input.core.v1.Container[] {
         var imageName = "folioci/folio-okapi-registration";
 
         var initContainers: input.core.v1.Container[] = [];
 
         for (const module of modules) {
-            initContainers.push(createInitContainerForModule(module, imageName));
+            initContainers.push(createJobContainer(module, imageName));
         }
 
         return initContainers;
     }
 
-    function createInitContainerForModule(m: FolioModule, image: string): input.core.v1.Container {
+    function createJobContainer(m: FolioModule, image: string): input.core.v1.Container {
         return {
             // NOTE folio-helm has a mechanism for registering the front-end mods. Don't use it!
             // The it only installs the snapshot versions of these mods. We need specific
@@ -99,15 +99,17 @@ export module prepare {
 
             // The initContainers spec doesn't allow underscores in the names, so replace that
             // with a dash. Front-end mods have an underscore in their names.
-            name: `register-module-${m.name.replace('_','-')}`,
+            name: `register-module-${m.name.replace('_', '-')}`,
             image: image,
             env: [
                 { name: "OKAPI_URL", value: m.okapiUrl },
                 { name: "MODULE_NAME", value: m.name },
                 { name: "MODULE_VERSION", value: m.version },
-                { name: "TENANT_ID", value: m.tenantId },
-                { name: "SAMPLE_DATA", value: `${m.loadReferenceData}` },
-                { name: "REF_DATA", value: `${m.loadSampleData}` }
+                // TODO Does setting this to empty have the intended effect of bypassing
+                // module registration, which is what we no longer want to do here?
+                { name: "TENANT_ID", value: "" },
+                // { name: "SAMPLE_DATA", value: `${m.loadReferenceData}` },
+                // { name: "REF_DATA", value: `${m.loadSampleData}` }
             ],
         };
     }
@@ -164,7 +166,7 @@ export module deploy {
      * @param dependsOn The resources that okapi depends on being live before deploying.
      * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(module: FolioModule, certArn:string, cluster: eks.Cluster,
+    export function okapi(module: FolioModule, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
         const values = {
             // Get the image from the version associated with the release.
@@ -225,7 +227,7 @@ export module deploy {
      * @param dependsOn Any dependencies.
      * @returns A reference to the helm release for this.
      */
-    export function stripes(repository:string, tag: string, certArn: string, cluster: eks.Cluster,
+    export function stripes(repository: string, tag: string, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
 
         // Platform complete is the somewhat oddly named folio-helm chart for deploying stripes.
@@ -432,13 +434,45 @@ export module deploy {
                 backoffLimit: 0
             }
         }, {
-                provider: cluster.provider,
+            provider: cluster.provider,
 
-                dependsOn: dependsOn,
+            dependsOn: dependsOn,
 
-                deleteBeforeReplace: true
-            });
+            deleteBeforeReplace: true
+        });
     }
+
+    export function deployModuleDescriptors(
+        name: string,
+        namespace: k8s.core.v1.Namespace,
+        cluster: eks.Cluster,
+        jobContainers: input.core.v1.Container[],
+        dependsOn?: Resource[]) {
+
+        return new k8s.batch.v1.Job(name, {
+            metadata: {
+                name: name,
+                namespace: namespace.id,
+            },
+
+            spec: {
+                template: {
+                    spec: {
+                        containers: jobContainers,
+                        restartPolicy: "Never",
+                    },
+                },
+                backoffLimit: 0
+            }
+        }, {
+            provider: cluster.provider,
+
+            dependsOn: dependsOn,
+
+            deleteBeforeReplace: true
+        });
+    }
+
 
     function deployHelmChart(chartName: string,
         cluster: eks.Cluster,
@@ -464,23 +498,23 @@ export module deploy {
             // complete.
             skipAwait: false,
 
-            // 10 minutes. The default is 5 minutes. After this time the helm release will
+            // 5 minutes. The default is 5 minutes. After this time the helm release will
             // return as complete, so we have to be careful here to make sure we're waiting
             // long enough. This timeout is a backstop if something has gone wrong. Otherwise
             // pulumi knows how to wait for the release to be complete. See note on skipAwait
             // above.
-            timeout: 600
+            timeout: 300
 
             // We don't specify the chart version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
         }, {
-                provider: cluster.provider,
+            provider: cluster.provider,
 
-                // This allows for any changes to the module's helm-chart params to result in a replacing
-                // change to the pod.
-                deleteBeforeReplace: true,
+            // This allows for any changes to the module's helm-chart params to result in a replacing
+            // change to the pod.
+            deleteBeforeReplace: true,
 
-                dependsOn: dependsOn
-            });
+            dependsOn: dependsOn
+        });
     }
 }
