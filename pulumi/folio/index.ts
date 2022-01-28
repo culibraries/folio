@@ -346,8 +346,9 @@ const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespac
 folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
     folioCluster, folioNamespace, [...moduleReleases]);
 
-// // TODO does this new design work?
-// // TODO does the order of containers matter for deployment desc?
+// TODO does this new design work?
+// TODO does the order of containers matter for deployment desc?
+// TODO should we be pushing the deployment descriptors for front end modules at all?
 const jobContainers: input.core.v1.Container[] = folio.prepare.jobContainers(modules);
 folio.deploy.deployModuleDescriptors("deploy-mod-descriptors", folioNamespace,
     folioCluster, jobContainers, [...moduleReleases]);

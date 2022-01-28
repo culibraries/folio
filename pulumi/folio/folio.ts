@@ -454,7 +454,6 @@ export module deploy {
                 name: name,
                 namespace: namespace.id,
             },
-
             spec: {
                 template: {
                     spec: {
