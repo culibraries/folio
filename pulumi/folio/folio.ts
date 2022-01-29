@@ -87,7 +87,7 @@ export module prepare {
     function createJobContainer(m: FolioModule, image: string): input.core.v1.Container {
         return {
             // NOTE folio-helm has a mechanism for registering the front-end mods. Don't use it!
-            // The it only installs the snapshot versions of these mods. We need specific
+            // It only installs the snapshot versions of these mods. We need specific
             // versions of these modules, so we register them using our deployment module
             // list which is generated for the release we care about.
 
