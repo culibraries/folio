@@ -99,11 +99,9 @@ export module prepare {
                 { name: "OKAPI_URL", value: m.okapiUrl },
                 { name: "MODULE_NAME", value: m.name },
                 { name: "MODULE_VERSION", value: m.version },
-                // TODO Does setting this to empty have the intended effect of bypassing
-                // module registration, which is what we no longer want to do here?
+                // Setting this to empty allows us to bypass module registration, which
+                // we don't want to do here. See the script for how this works.
                 { name: "TENANT_ID", value: "" },
-                // { name: "SAMPLE_DATA", value: `${m.loadReferenceData}` },
-                // { name: "REF_DATA", value: `${m.loadSampleData}` }
             ],
         };
     }

@@ -346,7 +346,6 @@ const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descri
 // Create hazelcast service account
 // Create hazelcast configmap
 
-// TODO What is 
 const superUserName = config.requireSecret("superuser-name");
 const superUserPassword = config.requireSecret("superuser-password");
 // TODO We need a job to register the modules. We have a script for it, but not
