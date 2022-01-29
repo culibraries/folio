@@ -91,8 +91,8 @@ export module prepare {
             // versions of these modules, so we register them using our deployment module
             // list which is generated for the release we care about.
 
-            // The initContainers spec doesn't allow underscores in the names, so replace that
-            // with a dash. Front-end mods have an underscore in their names.
+            // K8s doesn't allow underscores in names, so replace that with a dash. Front-end
+            // mods have an underscore in their names.
             name: `register-module-${m.name.replace('_', '-')}`,
             image: image,
             env: [
