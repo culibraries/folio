@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# This URL has to be available. Port forwarding won't work here.
 OKAPI_URL="https://folio-iris-okapi.cublcta.com:9130"
 FLAGS="--only-perms"
 USER="$UN"

@@ -1,64 +1,21 @@
 #!/usr/bin/env bash
 
-OKAPIURL="http://localhost:9000"
+OKAPI_URL="http://localhost:9000"
+TENANT_ID="cubl"
 CURL="curl -w\n -D - "
+IGNORE_ERRORS="false"
+REF_DATA="true"
+SAMPLE_DATA="false"
+DEPLOYMENT="R2-2021"
 
-H_TENANT="-HX-Okapi-Tenant:cubl"
 H_JSON="-HContent-type:application/json"
-H_TOKEN="-HX-Okapi-Token:$TOKEN" # Don't paste here bc you will forget you did!
 
-echo $OKAPIURL
-
-# NOTE Boostrap superuser borks then these modules will be disabled.
-# You can re-enable them like this.
-# [ {
-#     "id" : "folio_tenant-settings-6.1.2",
-#     "action" : "enable"
-#   }, {
-#     "id" : "mod-login-saml-2.3.2",
-#     "action" : "enable"
-#   }, {
-#     "id" : "folio_stripes-core-7.2.0",
-#     "action" : "enable"
-#   }, {
-#     "id" : "folio_users-6.1.4",
-#     "action" : "enable"
-#   }, {
-#     "id" : "mod-users-bl-7.0.1",
-#     "action" : "enable"
-#   }, {
-#     "id" : "mod-authtoken-2.8.2",
-#     "action" : "enable"
-# } ]
-# [ {
-#     "id" : "mod-authtoken-2.8.2",
-#     "action" : "disable"
-# } ]
-
-echo "Creating enable json ..."
-cat > enable.json << END
-[ {
-    "id" : "mod-data-export-4.1.2",
-    "action" : "enable"
-   },
-   {
-    "id" : "folio_inventory-7.1.4",
-    "action" : "enable"
-  }, {
-    "id" : "mod-data-export-worker-1.1.8",
-    "action" : "enable"
-} ]
-END
-
-echo "Curling install"
+# If you need to run this after mod-authtoken has been enabled you will need this.
+#H_TOKEN="-HX-Okapi-Token:$TOKEN" # Don't paste here bc you will forget you did!
+H_TENANT="-HX-Okapi-Tenant:$TENANT_ID"
 
 # Can only do this request if mod-authtoken isn't enabled.
-$CURL $H_TENANT $H_JSON $H_TOKEN --progress-bar \
+$CURL $H_JSON --progress-bar \
   -X POST \
-  -d@enable.json \
-  $OKAPIURL/_/proxy/tenants/cubl/install
-
-# $CURL $H_TENANT $H_JSON $H_TOKEN --progress-bar \
-#   -X POST \
-#   -d@enable.json \
-#   $OKAPIURL/_/proxy/tenants/cubl/install
+  -d@../deployments/$DEPLOYMENT.json \
+  $OKAPI_URL/_/proxy/tenants/$TENANT_ID/install?deploy=false\&preRelease=false\&ignoreErrors=$IGNORE_ERRORS\&tenantParameters=loadSample%3D$SAMPLE_DATA%2CloadReference%3D$REF_DATA

@@ -21,10 +21,8 @@ export module prepare {
         var folioModules: FolioModule[] = new Array<FolioModule>();
 
         const releaseModules = modulesForRelease(fd.deploymentConfigurationFilePath);
-        console.log(`Got ${releaseModules.length} modules from file: ${fd.deploymentConfigurationFilePath}`);
 
         for (const module of releaseModules) {
-            console.log(`Got module: ${module}`);
 
             const parsed = parseModuleNameAndId(module);
 
@@ -46,12 +44,10 @@ export module prepare {
         const versionStart = moduleId.lastIndexOf('-') + 1;
         const versionEnd = moduleId.length;
         const moduleVersion = moduleId.substring(versionStart, versionEnd);
-        console.log(`Got module version: ${moduleVersion}`);
 
         const nameStart = 0;
         const nameEnd = moduleId.lastIndexOf('-');
         const moduleName = moduleId.substring(nameStart, nameEnd);
-        console.log(`Got module name: ${moduleName}`);
 
         return { name: moduleName, version: moduleVersion };
     }
@@ -289,16 +285,13 @@ export module deploy {
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
         okapiRelease: k8s.helm.v3.Release): Resource[] {
-        console.log("Removing okapi from list of modules since it should have already been deployed");
-
+ 
         // Filter out okapi and the front-end modules. Okapi is deployed separately
         // prior to deploying the modules. Also, the front-end modules are only relevant
         // later when they need to be registered to okapi. In other words, they are not
         // containers that get deployed, like the regular modules.
         toDeploy = toDeploy.filter(module => module.name !== "okapi")
             .filter(module => !module.name.startsWith("folio_"));
-
-        console.log(`Attempting to deploy ${toDeploy.length} modules`);
 
         const moduleReleases: Resource[] = [];
 
@@ -383,10 +376,8 @@ export module deploy {
 
         const shouldCreateSuperuser: boolean =
             prepare.shouldCreateSuperuser(fd.deploymentConfigurationFilePath);
-        console.log(`Deployment configuration file
-            ${fd.deploymentConfigurationFilePath} says create superuser is ${shouldCreateSuperuser}`);
 
-        // When FLAGS is empty the job will attempt to create the superuser.
+            // When FLAGS is empty the job will attempt to create the superuser.
         // This should only be done once for a deployment so be careful about manually
         // changing the value of createSuperuser in the deployment config file.
         // See https://github.com/folio-org/folio-helm/blob/master/docker/bootstrap-superuser
@@ -497,12 +488,12 @@ export module deploy {
             // complete.
             skipAwait: false,
 
-            // 5 minutes. The default is 5 minutes. After this time the helm release will
+            // 2 minutes. The default is 5 minutes. After this time the helm release will
             // return as complete, so we have to be careful here to make sure we're waiting
             // long enough. This timeout is a backstop if something has gone wrong. Otherwise
             // pulumi knows how to wait for the release to be complete. See note on skipAwait
             // above.
-            timeout: 300
+            timeout: 120
 
             // We don't specify the chart version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs

@@ -249,7 +249,11 @@ var dbConnectSecretData = {
 
     // Not entirely sure if this makes mod-licenses and mod-agreements behave
     // but they are behaving and don't think there's a harm in leaving it in.
-    GRAILS_SERVER_PORT: Buffer.from("8080").toString("base64")
+    GRAILS_SERVER_PORT: Buffer.from("8080").toString("base64"),
+
+    // These two are required by mod-service-interaction.
+    OKAPI_PORT: Buffer.from("9130").toString("base64"),
+    OKAPI_HOST: Buffer.from("okapi").toString("base64")
 };
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
@@ -346,9 +350,12 @@ const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespac
 folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
     folioCluster, folioNamespace, [...moduleReleases]);
 
-// TODO does this new design work?
-// TODO does the order of containers matter for deployment desc?
 // TODO should we be pushing the deployment descriptors for front end modules at all?
+// NOTE folio-helm does, whereas TAMU does not.
+// Should we run these as separate jobs? Because right now if I add another module
+// I have to delete and recreate the job whereas which then re-registers every module
+// taking quite a while. This might work better if there was 1 pod per job so each
+// per job. Alternatively we just move this out of pulumi completely.
 const jobContainers: input.core.v1.Container[] = folio.prepare.jobContainers(modules);
 folio.deploy.deployModuleDescriptors("deploy-mod-descriptors", folioNamespace,
     folioCluster, jobContainers, [...moduleReleases]);
