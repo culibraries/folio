@@ -327,23 +327,6 @@ const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, certArn, fol
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
 
-// Run the module registration containers as init containers for the final create/
-// update super user job. This final job will attempt to create the
-// the superuser, applying all permissions to it if the deployment configuration
-// has createSuperuser set to true. If the deployment configuration has createSuperuser
-// set to false, this will apply all permissions to the superuser.
-// const superUserName = config.requireSecret("superuser-name");
-// const superUserPassword = config.requireSecret("superuser-password");
-// const modRegistrationJob = folio.deploy.registerModulesAndBootstrapSuperuser
-//     ("mod-reg-and-bootstrap-superuser",
-//     pulumi.interpolate`${superUserName}`,
-//     pulumi.interpolate`${superUserPassword}`,
-//     folioDeployment,
-//     folioNamespace,
-//     folioCluster,
-//     registrationInitContainers,
-//     moduleReleases);
-
 // NOTE This deploys with the name "platform-complete".
 // folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
 //     folioCluster, folioNamespace, [modRegistrationJob])
@@ -356,10 +339,24 @@ folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
 // I have to delete and recreate the job whereas which then re-registers every module
 // taking quite a while. This might work better if there was 1 pod per job so each
 // per job. Alternatively we just move this out of pulumi completely.
-const jobContainers: input.core.v1.Container[] = folio.prepare.jobContainers(modules);
-folio.deploy.deployModuleDescriptors("deploy-mod-descriptors", folioNamespace,
-    folioCluster, jobContainers, [...moduleReleases]);
+const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
+    folioNamespace, folioCluster, modules, [...moduleReleases]);
 
 // TODO Determine if the Helm chart takes care of the following:
 // Create hazelcast service account
 // Create hazelcast configmap
+
+// TODO What is 
+const superUserName = config.requireSecret("superuser-name");
+const superUserPassword = config.requireSecret("superuser-password");
+// TODO We need a job to register the modules. We have a script for it, but not
+// yet a job. This can't be run until that has taken place so commenting out for
+// now.
+// const modRegistrationJob = folio.deploy.bootstrapSuperuser
+//     ("mod-reg-and-bootstrap-superuser",
+//     pulumi.interpolate`${superUserName}`,
+//     pulumi.interpolate`${superUserPassword}`,
+//     folioDeployment,
+//     folioNamespace,
+//     folioCluster,
+//     [modDescriptorJob]);

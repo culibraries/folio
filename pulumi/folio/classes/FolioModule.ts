@@ -10,10 +10,6 @@ export class FolioModule {
 
     tenantId: string;
 
-    loadSampleData: boolean;
-
-    loadReferenceData: boolean;
-
     okapiUrl: string;
 
     limitsMemory: string;
@@ -30,16 +26,12 @@ export class FolioModule {
         version: string,
         enableModule: boolean,
         tenantId: string,
-        loadSampleData: boolean,
-        loadReferenceData: boolean,
         okapiUrl: string,
         containerRepository: string) {
         this.name = name;
         this.version = version;
         this.enableModule = enableModule;
         this.tenantId = tenantId;
-        this.loadSampleData = loadSampleData;
-        this.loadReferenceData = loadReferenceData;
         this.okapiUrl = okapiUrl;
         this.containerRepository = containerRepository;
 

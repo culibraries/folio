@@ -30,8 +30,6 @@ export module prepare {
                 parsed.version,
                 true,
                 fd.tenantId,
-                fd.loadSampleData,
-                fd.loadReferenceData,
                 fd.okapiUrl,
                 fd.containerRepository);
             folioModules.push(m);
@@ -285,7 +283,7 @@ export module deploy {
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
         okapiRelease: k8s.helm.v3.Release): Resource[] {
- 
+
         // Filter out okapi and the front-end modules. Okapi is deployed separately
         // prior to deploying the modules. Also, the front-end modules are only relevant
         // later when they need to be registered to okapi. In other words, they are not
@@ -330,10 +328,9 @@ export module deploy {
     }
 
     /**
-     * Registers modules for our tenant to okapi, and after each module registration runs
-     * in sequence, creates a superuser, if one needs to be created, applying all permissions,
+     * Creates a superuser, if one needs to be created, applying all permissions,
      * or if a superuser already exists, only updates superuser's permissions for the
-     * modules are deployed. Whether or not to create the superuser or just update the
+     * modules deployed. Whether or not to create the superuser or just update the
      * permissions is controlled by the createSuperuser property in the deployment
      * configuration yaml file.
      *
@@ -358,20 +355,17 @@ export module deploy {
      * @param fd A reference to the current folio deployment object.
      * @param namespace A reference to the k8s namespace.
      * @param cluster A reference to the k8s cluster.
-     * @param initContainers A list of container objects which must run successfully before
-     * bootstrapping the superuser.
      * @param dependsOn All modules that have been deployed. These deployments need to complete
      * before running this since the modules need to be available to it.
      * @returns A reference to the job resource.
      */
-    export function registerModulesAndBootstrapSuperuser(
+    export function bootstrapSuperuser(
         name: string,
         superUserName: pulumi.Output<string>,
         superUserPassword: pulumi.Output<string>,
         fd: FolioDeployment,
         namespace: k8s.core.v1.Namespace,
         cluster: eks.Cluster,
-        initContainers: input.core.v1.Container[],
         dependsOn?: Resource[]) {
 
         const shouldCreateSuperuser: boolean =
@@ -409,9 +403,6 @@ export module deploy {
             spec: {
                 template: {
                     spec: {
-                        // These jobs will run sequentially and before the bootstrap superuser job.
-                        initContainers: initContainers,
-
                         // This is what runs at the end.
                         containers: [{
                             name: name,
@@ -433,12 +424,22 @@ export module deploy {
         });
     }
 
+    /**
+     * Deploys the module deployment descriptors for the deployment.
+     * @param name The name of the job.
+     * @param namespace Reference to the namespace.
+     * @param cluster Reference to the cluster.
+     * @param modules The modules to deploy. Can include front and backend modules.
+     * @param dependsOn Resources that this job depends on.
+     * @returns A reference to the job.
+     */
     export function deployModuleDescriptors(
         name: string,
         namespace: k8s.core.v1.Namespace,
         cluster: eks.Cluster,
-        jobContainers: input.core.v1.Container[],
+        modules: FolioModule[],
         dependsOn?: Resource[]) {
+        const jobContainers: input.core.v1.Container[] = prepare.jobContainers(modules);
 
         return new k8s.batch.v1.Job(name, {
             metadata: {
