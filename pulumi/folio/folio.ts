@@ -21,10 +21,8 @@ export module prepare {
         var folioModules: FolioModule[] = new Array<FolioModule>();
 
         const releaseModules = modulesForRelease(fd.deploymentConfigurationFilePath);
-        console.log(`Got ${releaseModules.length} modules from file: ${fd.deploymentConfigurationFilePath}`);
 
         for (const module of releaseModules) {
-            console.log(`Got module: ${module}`);
 
             const parsed = parseModuleNameAndId(module);
 
@@ -32,8 +30,6 @@ export module prepare {
                 parsed.version,
                 true,
                 fd.tenantId,
-                fd.loadSampleData,
-                fd.loadReferenceData,
                 fd.okapiUrl,
                 fd.containerRepository);
             folioModules.push(m);
@@ -46,12 +42,10 @@ export module prepare {
         const versionStart = moduleId.lastIndexOf('-') + 1;
         const versionEnd = moduleId.length;
         const moduleVersion = moduleId.substring(versionStart, versionEnd);
-        console.log(`Got module version: ${moduleVersion}`);
 
         const nameStart = 0;
         const nameEnd = moduleId.lastIndexOf('-');
         const moduleName = moduleId.substring(nameStart, nameEnd);
-        console.log(`Got module name: ${moduleName}`);
 
         return { name: moduleName, version: moduleVersion };
     }
@@ -78,36 +72,36 @@ export module prepare {
         fs.writeFileSync(deploymentConfigFilePath, YAML.stringify(parsed));
     }
 
-    export function moduleRegistrationInitContainers(modules: FolioModule[]): input.core.v1.Container[] {
+    export function jobContainers(modules: FolioModule[]): input.core.v1.Container[] {
         var imageName = "folioci/folio-okapi-registration";
 
         var initContainers: input.core.v1.Container[] = [];
 
         for (const module of modules) {
-            initContainers.push(createInitContainerForModule(module, imageName));
+            initContainers.push(createJobContainer(module, imageName));
         }
 
         return initContainers;
     }
 
-    function createInitContainerForModule(m: FolioModule, image: string): input.core.v1.Container {
+    function createJobContainer(m: FolioModule, image: string): input.core.v1.Container {
         return {
             // NOTE folio-helm has a mechanism for registering the front-end mods. Don't use it!
-            // The it only installs the snapshot versions of these mods. We need specific
+            // It only installs the snapshot versions of these mods. We need specific
             // versions of these modules, so we register them using our deployment module
             // list which is generated for the release we care about.
 
-            // The initContainers spec doesn't allow underscores in the names, so replace that
-            // with a dash. Front-end mods have an underscore in their names.
-            name: `register-module-${m.name.replace('_','-')}`,
+            // K8s doesn't allow underscores in names, so replace that with a dash. Front-end
+            // mods have an underscore in their names.
+            name: `register-module-${m.name.replace('_', '-')}`,
             image: image,
             env: [
                 { name: "OKAPI_URL", value: m.okapiUrl },
                 { name: "MODULE_NAME", value: m.name },
                 { name: "MODULE_VERSION", value: m.version },
-                { name: "TENANT_ID", value: m.tenantId },
-                { name: "SAMPLE_DATA", value: `${m.loadReferenceData}` },
-                { name: "REF_DATA", value: `${m.loadSampleData}` }
+                // Setting this to empty allows us to bypass module registration, which
+                // we don't want to do here. See the script for how this works.
+                { name: "TENANT_ID", value: "" },
             ],
         };
     }
@@ -164,7 +158,7 @@ export module deploy {
      * @param dependsOn The resources that okapi depends on being live before deploying.
      * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(module: FolioModule, certArn:string, cluster: eks.Cluster,
+    export function okapi(module: FolioModule, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
         const values = {
             // Get the image from the version associated with the release.
@@ -225,7 +219,7 @@ export module deploy {
      * @param dependsOn Any dependencies.
      * @returns A reference to the helm release for this.
      */
-    export function stripes(repository:string, tag: string, certArn: string, cluster: eks.Cluster,
+    export function stripes(repository: string, tag: string, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
 
         // Platform complete is the somewhat oddly named folio-helm chart for deploying stripes.
@@ -287,7 +281,6 @@ export module deploy {
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
         okapiRelease: k8s.helm.v3.Release): Resource[] {
-        console.log("Removing okapi from list of modules since it should have already been deployed");
 
         // Filter out okapi and the front-end modules. Okapi is deployed separately
         // prior to deploying the modules. Also, the front-end modules are only relevant
@@ -295,8 +288,6 @@ export module deploy {
         // containers that get deployed, like the regular modules.
         toDeploy = toDeploy.filter(module => module.name !== "okapi")
             .filter(module => !module.name.startsWith("folio_"));
-
-        console.log(`Attempting to deploy ${toDeploy.length} modules`);
 
         const moduleReleases: Resource[] = [];
 
@@ -335,10 +326,9 @@ export module deploy {
     }
 
     /**
-     * Registers modules for our tenant to okapi, and after each module registration runs
-     * in sequence, creates a superuser, if one needs to be created, applying all permissions,
+     * Creates a superuser, if one needs to be created, applying all permissions,
      * or if a superuser already exists, only updates superuser's permissions for the
-     * modules are deployed. Whether or not to create the superuser or just update the
+     * modules deployed. Whether or not to create the superuser or just update the
      * permissions is controlled by the createSuperuser property in the deployment
      * configuration yaml file.
      *
@@ -363,28 +353,23 @@ export module deploy {
      * @param fd A reference to the current folio deployment object.
      * @param namespace A reference to the k8s namespace.
      * @param cluster A reference to the k8s cluster.
-     * @param initContainers A list of container objects which must run successfully before
-     * bootstrapping the superuser.
      * @param dependsOn All modules that have been deployed. These deployments need to complete
      * before running this since the modules need to be available to it.
      * @returns A reference to the job resource.
      */
-    export function registerModulesAndBootstrapSuperuser(
+    export function bootstrapSuperuser(
         name: string,
         superUserName: pulumi.Output<string>,
         superUserPassword: pulumi.Output<string>,
         fd: FolioDeployment,
         namespace: k8s.core.v1.Namespace,
         cluster: eks.Cluster,
-        initContainers: input.core.v1.Container[],
         dependsOn?: Resource[]) {
 
         const shouldCreateSuperuser: boolean =
             prepare.shouldCreateSuperuser(fd.deploymentConfigurationFilePath);
-        console.log(`Deployment configuration file
-            ${fd.deploymentConfigurationFilePath} says create superuser is ${shouldCreateSuperuser}`);
 
-        // When FLAGS is empty the job will attempt to create the superuser.
+            // When FLAGS is empty the job will attempt to create the superuser.
         // This should only be done once for a deployment so be careful about manually
         // changing the value of createSuperuser in the deployment config file.
         // See https://github.com/folio-org/folio-helm/blob/master/docker/bootstrap-superuser
@@ -416,9 +401,6 @@ export module deploy {
             spec: {
                 template: {
                     spec: {
-                        // These jobs will run sequentially and before the bootstrap superuser job.
-                        initContainers: initContainers,
-
                         // This is what runs at the end.
                         containers: [{
                             name: name,
@@ -429,16 +411,57 @@ export module deploy {
                         restartPolicy: "Never",
                     },
                 },
-                backoffLimit: 1
+                backoffLimit: 0
             }
         }, {
-                provider: cluster.provider,
+            provider: cluster.provider,
 
-                dependsOn: dependsOn,
+            dependsOn: dependsOn,
 
-                deleteBeforeReplace: true
-            });
+            deleteBeforeReplace: true
+        });
     }
+
+    /**
+     * Deploys the module deployment descriptors for the deployment.
+     * @param name The name of the job.
+     * @param namespace Reference to the namespace.
+     * @param cluster Reference to the cluster.
+     * @param modules The modules to deploy. Can include front and backend modules.
+     * @param dependsOn Resources that this job depends on.
+     * @returns A reference to the job.
+     */
+    export function deployModuleDescriptors(
+        name: string,
+        namespace: k8s.core.v1.Namespace,
+        cluster: eks.Cluster,
+        modules: FolioModule[],
+        dependsOn?: Resource[]) {
+        const jobContainers: input.core.v1.Container[] = prepare.jobContainers(modules);
+
+        return new k8s.batch.v1.Job(name, {
+            metadata: {
+                name: name,
+                namespace: namespace.id,
+            },
+            spec: {
+                template: {
+                    spec: {
+                        containers: jobContainers,
+                        restartPolicy: "Never",
+                    },
+                },
+                backoffLimit: 0
+            }
+        }, {
+            provider: cluster.provider,
+
+            dependsOn: dependsOn,
+
+            deleteBeforeReplace: true
+        });
+    }
+
 
     function deployHelmChart(chartName: string,
         cluster: eks.Cluster,
@@ -464,23 +487,23 @@ export module deploy {
             // complete.
             skipAwait: false,
 
-            // 10 minutes. The default is 5 minutes. After this time the helm release will
+            // 2 minutes. The default is 5 minutes. After this time the helm release will
             // return as complete, so we have to be careful here to make sure we're waiting
             // long enough. This timeout is a backstop if something has gone wrong. Otherwise
             // pulumi knows how to wait for the release to be complete. See note on skipAwait
             // above.
-            timeout: 600
+            timeout: 120
 
             // We don't specify the chart version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs
         }, {
-                provider: cluster.provider,
+            provider: cluster.provider,
 
-                // This allows for any changes to the module's helm-chart params to result in a replacing
-                // change to the pod.
-                deleteBeforeReplace: true,
+            // This allows for any changes to the module's helm-chart params to result in a replacing
+            // change to the pod.
+            deleteBeforeReplace: true,
 
-                dependsOn: dependsOn
-            });
+            dependsOn: dependsOn
+        });
     }
 }

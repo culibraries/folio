@@ -1,4 +1,4 @@
 bin
 node_modules
-
+logs
 kubeconfig.json

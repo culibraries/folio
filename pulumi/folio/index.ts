@@ -102,7 +102,9 @@ export const folioNamespaceName = folioNamespace.metadata.name;
 const releaseFilePath = "./deployments/R2-2021.yaml";
 const tenant = "cubl";
 const okapiUrl = "http://okapi:9130";
-const loadRefData = false;
+// TODO These two flags may no longer be relevant depending on how we end up registering
+// modules.
+const loadRefData = true;
 const loadSampleData = false;
 const containerRepo = "folioorg";
 const folioDeployment = new FolioDeployment(tenant,
@@ -120,7 +122,6 @@ const appLabels = { appClass: appName };
 // These secrets have been set in the stack using the pulumi command line.
 const config = new pulumi.Config();
 
-const inClusterDbHost = config.requireSecret("db-host");
 const dbAdminUser = config.requireSecret("db-admin-user");
 const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
@@ -154,7 +155,7 @@ const pgCluster = new aws.rds.Cluster(clusterName, {
         "us-west-2b",
         "us-west-2c"
     ],
-    backupRetentionPeriod: 5,
+    backupRetentionPeriod: 30,
     clusterIdentifier: pgClusterId,
     databaseName: "postgres",
     engine: "aurora-postgresql",
@@ -206,7 +207,7 @@ const configMap = folio.deploy.configMap("default-config",
     configMapData, appLabels, folioCluster, folioNamespace,
     [folioNamespace]);
 
-var secretData = {
+var dbConnectSecretData = {
     //DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
     DB_HOST: util.base64Encode(folioDbHost),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
@@ -248,12 +249,34 @@ var secretData = {
 
     // Not entirely sure if this makes mod-licenses and mod-agreements behave
     // but they are behaving and don't think there's a harm in leaving it in.
-    GRAILS_SERVER_PORT: Buffer.from("8080").toString("base64")
-};
+    GRAILS_SERVER_PORT: Buffer.from("8080").toString("base64"),
 
-// // Deploy the main secret which is used by modules to connect to the db. This
-// // secret name is used extensively in folio-helm.
-const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, folioCluster,
+    // These two are required by mod-service-interaction.
+    OKAPI_PORT: Buffer.from("9130").toString("base64"),
+    OKAPI_HOST: Buffer.from("okapi").toString("base64")
+};
+// Deploy the main secret which is used by modules to connect to the db. This
+// secret name is used extensively in folio-helm.
+const dbConnectSecret = folio.deploy.secret("db-connect-modules", dbConnectSecretData,
+    appLabels, folioCluster, folioNamespace, [folioNamespace]);
+
+// Bucket required by mod-data-export, which is required by mod-inventory.
+// TODO Create this bucket in pulumi.
+const dataExportBucket = `folio-data-export-${pulumi.getStack()}`;
+var s3CredentialsDataExportSecretData = {
+    AWS_ACCESS_KEY_ID: Buffer.from("TODO").toString("base64"),
+    AWS_BUCKET: Buffer.from(dataExportBucket).toString("base64"),
+    AWS_REGION: Buffer.from("TODO").toString("base64"),
+    AWS_SECRET_ACCESS_KEY: Buffer.from("TODO").toString("base64"),
+    AWS_URL: Buffer.from("https://s3.amazonaws.com").toString("base64")
+};
+const s3CredentialsDataExportSecret = folio.deploy.secret("s3-credentials-data-export",
+    s3CredentialsDataExportSecretData, appLabels, folioCluster,
+    folioNamespace, [folioNamespace]);
+// Note for some reason the folio-helm chart for mod-data-export-worker requires the same items
+// but with a different name.
+const s3CredentialsSecret = folio.deploy.secret("s3-credentials",
+    s3CredentialsDataExportSecretData, appLabels, folioCluster,
     folioNamespace, [folioNamespace]);
 
 // NOTE We are currently using pulumi's helm Release rather than helm Chart.
@@ -266,7 +289,6 @@ const secret = folio.deploy.secret("db-connect-modules", secretData, appLabels, 
 export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNamespace,
     [folioNamespace]);
 
-//This can run multiple times without causing trouble.
 // export const inClusterPostgres = postgresql.deploy.helm("in-cluster-postgres", folioCluster,
 //     folioNamespace, dbAdminPassword, [folioNamespace, secret]);
 
@@ -299,36 +321,41 @@ const certArn:string = "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-
 // Deploy okapi first, being sure that other dependencies have deployed first.
 // TODO Add the dbCreateJob back in here as a dep.
 const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, certArn, folioCluster,
-    folioNamespace, [pgCluster, ...clusterInstances, secret, configMap, kafkaInstance, dbCreateJob]);
+    folioNamespace, [pgCluster, ...clusterInstances, dbConnectSecret, s3CredentialsDataExportSecret,
+        s3CredentialsSecret, configMap, kafkaInstance, dbCreateJob]);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
 
-// Prepare a list of containers which will perform the module registration in sequence.
-const registrationInitContainers: input.core.v1.Container[] =
-    folio.prepare.moduleRegistrationInitContainers(modules);
+// NOTE This deploys with the name "platform-complete".
+// folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
+//     folioCluster, folioNamespace, [modRegistrationJob])
+folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
+    folioCluster, folioNamespace, [...moduleReleases]);
 
-// Run the module registration containers as init containers for the final create/
-// update super user job. This final job will attempt to create the
-// the superuser, applying all permissions to it if the deployment configuration
-// has createSuperuser set to true. If the deployment configuration has createSuperuser
-// set to false, this will apply all permissions to the superuser.
+// TODO should we be pushing the deployment descriptors for front end modules at all?
+// NOTE folio-helm does, whereas TAMU does not.
+// Should we run these as separate jobs? Because right now if I add another module
+// I have to delete and recreate the job whereas which then re-registers every module
+// taking quite a while. This might work better if there was 1 pod per job so each
+// per job. Alternatively we just move this out of pulumi completely.
+const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
+    folioNamespace, folioCluster, modules, [...moduleReleases]);
+
+// TODO Determine if the Helm chart takes care of the following:
+// Create hazelcast service account
+// Create hazelcast configmap
+
 const superUserName = config.requireSecret("superuser-name");
 const superUserPassword = config.requireSecret("superuser-password");
-const modRegistrationJob = folio.deploy.registerModulesAndBootstrapSuperuser
-    ("mod-reg-and-bootstrap-superuser",
-    pulumi.interpolate`${superUserName}`,
-    pulumi.interpolate`${superUserPassword}`,
-    folioDeployment,
-    folioNamespace,
-    folioCluster,
-    registrationInitContainers,
-    moduleReleases);
-
-// NOTE This deploys with the name "platform-complete".
-folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
-    folioCluster, folioNamespace, [modRegistrationJob])
-
-// // TODO Determine if the Helm chart takes care of the following:
-// // Create hazelcast service account
-// // Create hazelcast configmap
+// TODO We need a job to register the modules. We have a script for it, but not
+// yet a job. This can't be run until that has taken place so commenting out for
+// now.
+// const modRegistrationJob = folio.deploy.bootstrapSuperuser
+//     ("mod-reg-and-bootstrap-superuser",
+//     pulumi.interpolate`${superUserName}`,
+//     pulumi.interpolate`${superUserPassword}`,
+//     folioDeployment,
+//     folioNamespace,
+//     folioCluster,
+//     [modDescriptorJob]);
