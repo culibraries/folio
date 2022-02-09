@@ -47,6 +47,9 @@ export class FolioModule {
         } else if (name.startsWith("mod-permissions")) {
             this.limitsMemory = "1500Mi"
             this.requestsMemory = "500Mi";
+        } else if (name.startsWith("mod-inventory-storage")) {
+            this.limitsMemory = "1500Mi"
+            this.requestsMemory = "500Mi";
         } else {
             this.limitsMemory = "512Mi"
             this.requestsMemory = "400Mi";
