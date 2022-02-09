@@ -48,6 +48,8 @@ export class FolioModule {
             this.limitsMemory = "1500Mi"
             this.requestsMemory = "500Mi";
         } else if (name.startsWith("mod-inventory-storage")) {
+            // mod-inventory storage will crash with OOM during data import if its
+            // memory limit isn't increased.
             this.limitsMemory = "1500Mi"
             this.requestsMemory = "500Mi";
         } else {
