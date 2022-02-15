@@ -292,30 +292,7 @@ export module deploy {
         const moduleReleases: Resource[] = [];
 
         for (const module of toDeploy) {
-            const values = {
-                // Get the image from the version associated with the release.
-                image: {
-                    tag: module.version,
-                    repository: `${module.containerRepository}/${module.name}`
-                },
-
-                fullnameOverride: module.name,
-
-                // The postJob value in the folio-helm chart is very unreliable. We don't use it and
-                // instead create our own job that runs after all modules have been installed.
-                postJob: {
-                    enabled: false
-                },
-
-                resources: {
-                    limits: {
-                        memory: module.limitsMemory
-                    },
-                    requests: {
-                        memory: module.requestsMemory
-                    }
-                }
-            }
+            const values = getModuleValues(module);
 
             const moduleRelease =
                 deployHelmChart(module.name, cluster, namespace, values, [okapiRelease]);
@@ -323,6 +300,48 @@ export module deploy {
         }
 
         return moduleReleases;
+    }
+
+    function getModuleValues(module: FolioModule): any {
+        let values:any = {
+            // Get the image from the version associated with the release.
+            image: {
+                tag: module.version,
+                repository: `${module.containerRepository}/${module.name}`
+            },
+
+            fullnameOverride: module.name,
+
+            // The postJob value in the folio-helm chart is very unreliable. We don't use it and
+            // instead create our own job that runs after all modules have been installed.
+            postJob: {
+                enabled: false
+            },
+
+            resources: {
+                limits: {
+                    memory: module.limitsMemory
+                },
+                requests: {
+                    memory: module.requestsMemory
+                }
+            }
+        }
+
+        // The folio-helm mod-authtoken helm chart hardcodes the signing key. See:
+        // https://github.com/folio-org/folio-helm/blob/1f11f54ade1b00eff92427b549764a73e7ec21bf/mod-authtoken/values.yaml#L83
+
+        // This is bad since it means not only that your signing key is available to the world in
+        // this public repository if you fail to notice this when using the chart, but it also
+        // means that the default behavior of mod-authtoken (getting random singing key)
+        // is overridden. Since FOLIO currently has no way to revoke a token, the only way
+        // to 'reset' a compromised system is to restart mod-authtoken with a new random key
+        // or to pass in a new signing key as a java option.
+        if (module.name.startsWith("mod-authtoken")) {
+            values.javaOptions = "-XX:MaxRAMPercentage=85.0 -XX:+UseG1GC -Dcache.permissions=true";
+        }
+
+        return values;
     }
 
     /**
