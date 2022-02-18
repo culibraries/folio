@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maintaining Infrastructure as Code &mdash; FOLIO at University of Colorado 2021.r1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+        <script>mermaid.initialize({startOnLoad:true});</script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="[short title of solved problem and solution]" href="002-lawAsBranch.html" />
+    <link rel="prev" title="Timeline" href="../project-management/timeline.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> FOLIO at University of Colorado
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../project-management/timeline.html">Timeline</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Maintaining Infrastructure as Code</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#context-and-problem-statement">Context and Problem Statement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#decision-drivers">Decision Drivers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#considered-options">Considered Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#decision-outcome">Decision Outcome</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pros-and-cons-of-the-options">Pros and Cons of the Options</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#rancher">Rancher</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ansible">Ansible</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#terraform">Terraform</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cloudformation">Cloudformation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pulumi">Pulumi</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#helm">Helm</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#links">Links</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="002-lawAsBranch.html">[short title of solved problem and solution]</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">FOLIO at University of Colorado</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Maintaining Infrastructure as Code</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/001-pulumiHelm.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="maintaining-infrastructure-as-code">
+<h1>Maintaining Infrastructure as Code<a class="headerlink" href="#maintaining-infrastructure-as-code" title="Permalink to this headline"></a></h1>
+<ul class="simple">
+<li><p>Status: accepted</p></li>
+<li><p>Deciders: James Fuller, Steve Ellis</p></li>
+<li><p>Date: 2021-10-22</p></li>
+</ul>
+<section id="context-and-problem-statement">
+<h2>Context and Problem Statement<a class="headerlink" href="#context-and-problem-statement" title="Permalink to this headline"></a></h2>
+<p>We need to create kubernetes infrastructure using AWS resources to support FOLIO and then deploy FOLIO containers into that infrastructure. Ideally the process would be repeatable, version controlled, automateable, testable, and not dependant on a single person (shared state).</p>
+</section>
+<section id="decision-drivers">
+<h2>Decision Drivers<a class="headerlink" href="#decision-drivers" title="Permalink to this headline"></a></h2>
+<ul class="simple">
+<li><p>Required manual steps and gaps in current ansible code</p></li>
+<li><p>Need for repeatable FOLIO instances to support Data Migration, FOLIO upgrade testing, infrastructure optimization, and sandbox efforts.</p></li>
+<li><p>CI/CD goal for infrastructure, including testing.</p></li>
+<li><p>Desire to improve FOLIO community support for kubernetes deployments.</p></li>
+</ul>
+</section>
+<section id="considered-options">
+<h2>Considered Options<a class="headerlink" href="#considered-options" title="Permalink to this headline"></a></h2>
+<ul class="simple">
+<li><p>Rancher</p></li>
+<li><p>Ansible</p></li>
+<li><p>Helm</p></li>
+<li><p>Pulumi</p></li>
+<li><p>Terraform</p></li>
+<li><p>Cloudformation</p></li>
+</ul>
+</section>
+<section id="decision-outcome">
+<h2>Decision Outcome<a class="headerlink" href="#decision-outcome" title="Permalink to this headline"></a></h2>
+<p>Chosen option: Pulumi and Helm, because it seems like a modern and flexible set of tools that we can work with openly and make avaiable to others in the FOLIO community.</p>
+</section>
+<section id="pros-and-cons-of-the-options">
+<h2>Pros and Cons of the Options<a class="headerlink" href="#pros-and-cons-of-the-options" title="Permalink to this headline"></a></h2>
+<section id="rancher">
+<h3>Rancher<a class="headerlink" href="#rancher" title="Permalink to this headline"></a></h3>
+<ul class="simple">
+<li><p>Good, because we are already using it on the team</p></li>
+<li><p>Bad, because it is domain specific and not easy to maintain in code.</p></li>
+</ul>
+</section>
+<section id="ansible">
+<h3>Ansible<a class="headerlink" href="#ansible" title="Permalink to this headline"></a></h3>
+<ul class="simple">
+<li><p>Good, because we are already using it on the team</p></li>
+<li><p>Bad, because doesn’t share state between local developer machines, it assumes that state is known via the target which is not true for Helm.</p></li>
+</ul>
+</section>
+<section id="terraform">
+<h3>Terraform<a class="headerlink" href="#terraform" title="Permalink to this headline"></a></h3>
+<ul class="simple">
+<li><p>Good, because it is provider agnostic</p></li>
+<li><p>Good, because it works well for IaC principles</p></li>
+<li><p>Bad, because it requires the use of a custom programming language (HCL)</p></li>
+</ul>
+</section>
+<section id="cloudformation">
+<h3>Cloudformation<a class="headerlink" href="#cloudformation" title="Permalink to this headline"></a></h3>
+<ul class="simple">
+<li><p>Good, because it works well for IaC principles</p></li>
+<li><p>Good, because it is AWS’ native tool</p></li>
+<li><p>Bad, because it requires the use of a custom programming language (CF)</p></li>
+<li><p>Bad, because it is not always up to date with the AWS APIs</p></li>
+</ul>
+</section>
+<section id="pulumi">
+<h3>Pulumi<a class="headerlink" href="#pulumi" title="Permalink to this headline"></a></h3>
+<ul class="simple">
+<li><p>Good, because it is provider agnostic</p></li>
+<li><p>Good, because it works well for IaC principles</p></li>
+<li><p>Good, because it uses general programming languages</p></li>
+<li><p>Good, because there is a growing OSS community.</p></li>
+<li><p>Good, because it is always up to date with the AWS APIs using the <a class="reference external" href="https://www.pulumi.com/registry/packages/aws-native/">AWS Native Provider</a></p></li>
+</ul>
+</section>
+<section id="helm">
+<h3>Helm<a class="headerlink" href="#helm" title="Permalink to this headline"></a></h3>
+<ul class="simple">
+<li><p>Good, because defacto standard for package management in Kubernetes</p></li>
+<li><p>Good, because there is some support for Helm Charts in the FOLIO community. The scratch environments are deployed using <a class="reference external" href="https://github.com/folio-org/folio-helm">FOLIO Helm Charts</a></p></li>
+</ul>
+</section>
+</section>
+<section id="links">
+<h2>Links<a class="headerlink" href="#links" title="Permalink to this headline"></a></h2>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/folio-org/folio-helm">FOLIO Helm Charts</a></p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../project-management/timeline.html" class="btn btn-neutral float-left" title="Timeline" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="002-lawAsBranch.html" class="btn btn-neutral float-right" title="[short title of solved problem and solution]" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, CU Libraries.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
