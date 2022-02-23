@@ -2,3 +2,4 @@ bin
 node_modules
 logs
 kubeconfig.json
+docs/_build/*
