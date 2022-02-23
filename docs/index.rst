@@ -6,6 +6,18 @@
 FOLIO at University of Colorado
 ===========================================================
 
+------------
+About FOLIO
+------------
+
+Welcome to the FOLIO documentation wiki! FOLIO is the LSP for the CU Boulder and CU Law Libraries.
+
+* Chrome is the recommended browser for FOLIO
+* Our current sandbox environment: `sandbox-folio.colorado.edu <https://sandbox-folio.colorado.edu>`_
+* Our current version is **Iris**
+
+To get appropriate user permissions to FOLIO please put in a `ServiceNow ticket <https://colorado.service-now.com/lib_landing.do>` with Libraries Specific Applications and Technology
+
 ---------------
 Release naming
 ---------------
@@ -31,3 +43,4 @@ Nolana initial release         2022.r3.0
    project-management
    adrs
    settings-ref-data
+   docs
