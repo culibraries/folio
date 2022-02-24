@@ -1,7 +1,7 @@
-FOLIO Settings
+Apps
 =====================================
 .. toctree::
-   :caption: Settings
+   :caption: Apps
    :maxdepth: 1
    :glob:
 

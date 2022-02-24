@@ -12,9 +12,9 @@ About FOLIO
 
 Welcome to the FOLIO documentation wiki! FOLIO is the LSP for the CU Boulder and CU Law Libraries.
 
-* Chrome is the recommended browser for FOLIO
-* Our current sandbox environment: `sandbox-folio.colorado.edu <https://sandbox-folio.colorado.edu>`_
 * Our current version is **Iris**
+* Our current sandbox environment: `sandbox-folio.colorado.edu <https://sandbox-folio.colorado.edu>`_
+* Chrome is the recommended browser for FOLIO
 
 To get appropriate user permissions to FOLIO please put in a `ServiceNow ticket <https://colorado.service-now.com/lib_landing.do>` with Libraries Specific Applications and Technology
 
@@ -35,11 +35,21 @@ Morning Glory initial release  2022.r2.0
 Nolana initial release         2022.r3.0
 ============================== =========
 
+----------------------
+Training documentation
+----------------------
+
+* `General FOLIO Product Documentation <https://docs.folio.org/docs/>`_
+* `Cornell FOLIO Documentation <https://confluence.cornell.edu/display/ltstr/FOLIO>`_
+
 .. toctree::
    :maxdepth: 1
    :caption: FOLIO Apps
+   :hidden:
 
-   settings/index.rst
+   apps/index.rst   
+   settings/index.rst   
+   configuration/index.rst
 
 .. toctree::
    :maxdepth: 1
