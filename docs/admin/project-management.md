@@ -17,8 +17,9 @@
       section FOLIO Community
       2022.r1.0 (INN-Reach backend) :milestone, 2022-04-18, 0d
       2022.r2.0 :milestone, 2022-08-08, 0d
-      INN-Reach UI :milestone, 2022-10-01, 0d
       2022.r3.0 :milestone, 2022-11-08, 0d
+      INN-Reach iii certification :milestone, 2022-11-22, 0d
+      INN-Reach GA :milestone, 2023-02-23, 0d
 
       section Project Management
       Refactor Timeline     :active, 2022-02-21, 1w
@@ -49,3 +50,7 @@
 
       section Meta
 ```
+
+### Other data sources
+
+- [INN-Reach Development Update 2022-02-07](https://docs.google.com/presentation/d/1-DkuEd6Mh9lDpywmnRUTp1oF5NHmQcaI/edit#slide=id.p10)

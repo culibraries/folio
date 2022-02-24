@@ -37,10 +37,14 @@ Nolana initial release         2022.r3.0
 
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
+   :caption: FOLIO Apps
+
+   settings/index.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Administrative
    :hidden:
 
-   project-management
-   adrs
-   settings-ref-data
-   docs
+   admin/index.rst
+   adr/index.rst
