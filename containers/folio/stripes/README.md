@@ -4,7 +4,7 @@ Container is based on the one found here: https://github.com/folio-org/platform-
 
 ## Changing the hostname for the Stripes frontend
 
-- Update hostname in `Dockerfile` and `stripes.config.js`.
+- Update hostname in `Dockerfile`. This overrides the url in stripes.config.js so no need to change that.
 - Build and deploy the container
 
 ## Getting the correct versions of packages
