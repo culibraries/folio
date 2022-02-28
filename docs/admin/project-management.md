@@ -38,9 +38,9 @@
 
       section Operations
       Scratch Environment :active, o1, 2022-03-01, 4w
-      Deploy Kiwi :o2, after o1,  4w
+      Deploy Kiwi :crit, o2, after o1,  4w
       Infrastructure improvements :o3, after o2, 4w
-      Deploy LDP :o4, after o3, 4w
+      Deploy LDP :crit, o4, after o3, 4w
       Deploy Lotus :o5, 2022-08-01, 4w
       Deploy Morning Glory :o6, 2022-11-01, 4w
 
@@ -48,7 +48,23 @@
       EDS over Sierra   :active, d1, 2022-02-21, 12w
       Relevancy Testing  :12w
 
-      section Meta
+
+      section Metadata - Deep Dives
+      Bulk Edit: 
+      Deleting Records: 
+      Data Export: 2022-09-01,2022-09-30
+      Bound-withs: 2022-09-01,2022-10-15
+      Authority Control: 
+      Data Import: 2022-07-01,2022-09-01
+      Local notes/Statistical codes: 
+
+      section Metadata - Data Import
+      Document active Sierra load profiles :active, 2022-02-28,2022-03-31
+      Annotate Sierra load profiles :2022-04-01,2022-06-30
+      Create basic profile :2022-10-01,2022-10-31
+      Creating and testing necessary profiles :2022-11-01,2022-12-31
+      Complete and Document Profiles :2023-01-01,2023-03-31
+
 ```
 
 ### Other data sources
