@@ -56,6 +56,16 @@ cubl-pulumi/folio/dev/.pulumi
 
 **When creating a new stack, check the s3 bucket to make sure it is ending up in a project directory like other stacks.**
 
+#### Creating a new stack
+
+ To create a new stack do `pulumi stack ini`t. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
+
+ #### Switching between stacks
+
+```
+pulumi stack select
+```
+
 ## Deploying a Stack
 
 ### Configure your local workstation
