@@ -1,0 +1,19 @@
+encryptionsalt: v1:ITzwthtd2fo=:v1:Y74x8vE11ZQZuXXl:iWKu+XLCaEingHGlJQeoQKITvbN79w==
+config:
+  aws:region: us-west-2
+  folio:awsAccountId:
+    secure: v1:AxLfYlwV0d6DKd1M:wWJA93Fl1BxTaa54Z/3TZTshCUxFSwVJGEDyTQ==
+  folio:db-admin-password:
+    secure: v1:y6AY+YW236IK0o2X:G7YxkB3mbHC6uwJAbbBr9JG4D32Vl4QEqhWtZoUHM3K0DcvpZ8NeGuz0irvTPxE=
+  folio:db-admin-user:
+    secure: v1:0+6Wh16KxJuGZqxW:aORCM0UzPvWRd0MpGmeUNbgq6PYufQKm
+  folio:db-host:
+    secure: v1:p3diyq230i10HE+t:OOs7G1b8HrNNRO4w9f6Ex2XGNMUfTcblyes=
+  folio:db-user-name:
+    secure: v1:YcVlN8Ghm60ohh+6:l6AHWgEV46/4chftsQZDYFoOWiuD
+  folio:db-user-password:
+    secure: v1:Xg0KVAlQBLLzn8wB:fgdPHk38to4uD29Jh2aj0DtzgR+igRIN+MNv077Pv4wGGLd0i2b8DP9YYnNcSwY=
+  folio:superuser-name:
+    secure: v1:9uPN1vpREVz1IfAx:GOx6gmU3RbAvUW+I7eUHnO3cYKFsp7W264M=
+  folio:superuser-password:
+    secure: v1:mEGdFfcWnt5d8IkZ:8Sa6kdQhd5lA9czQaLB0y2asbEXWcYoBoTtzL0QWbGv0c8eXNdPoFRK2sM7iIAU=

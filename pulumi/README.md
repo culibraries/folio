@@ -58,13 +58,19 @@ cubl-pulumi/folio/dev/.pulumi
 
 #### Creating a new stack
 
- To create a new stack do `pulumi stack ini`t. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
+ To create a new stack do `pulumi stack init`. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
 
  #### Switching between stacks
 
 ```
-pulumi stack select
+pulumi stack select <stack name>
 ```
+Make sure that before you try to select a stack you have logged into
+
+#### To rename a stack
+````
+pulumi stack rename
+````
 
 ## Deploying a Stack
 
@@ -75,7 +81,7 @@ pulumi stack select
     Once logged in you can change the code for the stack and redeploy it. The state for the `dev` stack can be logged into like this:
 
     ```sh
-    pulumi login s3://cubl-pulumi/folio/dev
+    pulumi login s3://cubl-pulumi/folio
     ```
 
 1. Setting the PULUMI_CONFIG_PASSPHRASE
