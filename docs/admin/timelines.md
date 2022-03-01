@@ -1,12 +1,10 @@
-# Project Management
+# Timelines
 
-## Timelines
+## Contract end dates
 
-### Contract end dates
-
-- Summon Contract Ends 2022-06-30
-- Millennium Contract Ends 2023-06-30
-- Sierra Contract Ends 2023-09-30
+- Main Libraries Summon Contract Ends 2022-06-30
+- Law Millennium Contract Ends 2023-06-30
+- Main Libraries Sierra Contract Ends 2023-09-30
 
 ```{mermaid}
   gantt

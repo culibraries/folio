@@ -36,7 +36,7 @@ Budgets are allocation amounts plus the parameters and rules, if any, about the 
 
 ### Acquisition Units
 
-Ledgers, Funds, and Budgets can be identified as pertaining to an Acquisition Unit. For our current purposes, we will establish a CU Boulder Acquisition Unit in the event that Law’s budget and financial structure is also incorporate into our (version?/instance?) of FOLIO.
+Ledgers, Funds, and Budgets can be identified as pertaining to an Acquisition Unit. For our current purposes, we will establish a CU Boulder Acquisition Unit in the event that Law’s budget and financial structure is also incorporate into our instance of FOLIO.
 
 Identifying ledgers, funds, and budgets to specific Acquisition Units prevents users from outside the Acquisition Unit from editing, expending, or altering finance data. CU Boulder and Law would be able to view each others ledgers and funds, but could not apply a fund accidentally to a purchase order line, for example.
 
