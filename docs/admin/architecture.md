@@ -47,9 +47,8 @@ flowchart LR
 
 ```{mermaid}
 flowchart TB
-  direction TB
   subgraph Kubernetes
-    subgraph FOLIO
+    subgraph FOLIO Project
       Stripes -->okapi <--> m1 & m2 & m3 & m4 & m5
       m1[mod_user]
       m2[mod_user_bl]
@@ -59,11 +58,11 @@ flowchart TB
       m6[mod_inventory_storage]
       m70[60+ additional modules]
     end
+    kafka[(Kafka)]
   end
-  kafka[(Kafka)]
   db[(PostgreSQL)]
   s3[/s3 file storage\]
-  m4 & m6 & m70<--->db
-  m3 & m6 & m70<--->kafka
-  m3 & m6 & m70<--->s3
+  m4 & m6 & m70<-->db
+  m3 & m6 & m70<-->kafka
+  m3 & m6 & m70<-->s3
 ```

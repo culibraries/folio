@@ -57,12 +57,11 @@
       Local notes/Statistical codes: 
 
       section Metadata - Data Import
-      Document active Sierra load profiles :active, 2022-02-28,2022-03-31
-      Annotate Sierra load profiles :2022-04-01,2022-06-30
-      Create basic profile :2022-09-01,2022-09-30
-      Creating and testing necessary profiles :2022-10-01,2022-11-31
-      Complete and Document Profiles :2022-12-01,2023-02-31
-
+      Document active Sierra load profiles :active, 2022-02-28, 4w
+      Annotate Sierra load profiles :2022-04-01, 8w
+      Create basic profile :2022-09-01, 3w
+      Create and test necessary profiles :2022-10-01, 6w
+      Complete and Document Profiles :2022-12-01, 6w
 ```
 
 ### Other data sources
