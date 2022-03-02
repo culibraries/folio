@@ -58,3 +58,4 @@ Training documentation
 
    admin/index.rst
    adr/index.rst
+   resources/index.rst
