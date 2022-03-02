@@ -46,23 +46,59 @@ flowchart LR
 ## FOLIO Application
 
 ```{mermaid}
-flowchart TB
-  subgraph Kubernetes
-    subgraph FOLIO Project
-      Stripes -->okapi <--> m1 & m2 & m3 & m4 & m5
-      m1[mod_user]
-      m2[mod_user_bl]
-      m3[mod_circulation]
-      m4[mod_circulation_storage]
-      m5[mod_inventory]
-      m6[mod_inventory_storage]
-      m70[60+ additional modules]
-    end
-    kafka[(Kafka)]
+flowchart LR
+  classDef kafka fill:#6200EE,color:#fff;
+  classDef db fill:#03DAC6;
+  classDef kafkadb fill:#2196F3;
+  subgraph Data Storage
+    kafka[(Kafka)]:::kafka
+    db[(PostgreSQL)]:::db
+    kafkadb[(Kafka and PostgreSQL)]:::kafkadb
   end
-  db[(PostgreSQL)]
-  s3[/s3 file storage\]
-  m4 & m6 & m70<-->db
-  m3 & m6 & m70<-->kafka
-  m3 & m6 & m70<-->s3
+  subgraph FOLIO Project Code
+    direction TB
+    Stripes -->okapi <--> a & c & e & f & i & in & l & o & r & req & u & p
+    subgraph a[Agreements]
+    end
+    subgraph c[Circulation]
+      c1[mod-circulation]
+      c2[mod-circulation-storage]:::kafkadb
+      c3[mod-feesfines]:::db
+      c4[mod-patron-blocks]:::db
+      c5[mod-courses]:::db
+      c6[mod-patron]
+    end
+    subgraph e[eHoldings & ERM]
+    end
+    subgraph f[Finance]
+    end
+    subgraph i[Inventory]
+      i1[mod-inventory]:::kafkadb
+      i2[mod-inventory-storage]:::kafkadb
+      i3[mod-source-record-storage]:::kafkadb
+      i4[mod-source-record-manager]:::kafkadb
+      i5[mod-search]:::kafkadb
+      i6[mod-quick-marc]:::kafkadb
+      i7[mod-copycat]:::db
+    end
+    subgraph in[Invoices]
+    end
+    subgraph l[Licenses]
+    end
+    subgraph o[Orders]
+    end
+    subgraph r[Receiving]
+    end
+    subgraph req[Requests]
+    end
+    subgraph u[Users]
+      u1[mod-user]:::db
+      u2[mod-user-bl]:::db
+      u3[mod-login]
+      u4[mod-permissions]:::db
+      u5[mod-password-validator]:::db
+    end
+    subgraph p[Platform Modules]
+    end
+  end
 ```
