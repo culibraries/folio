@@ -56,6 +56,22 @@ cubl-pulumi/folio/dev/.pulumi
 
 **When creating a new stack, check the s3 bucket to make sure it is ending up in a project directory like other stacks.**
 
+#### Creating a new stack
+
+ To create a new stack do `pulumi stack init`. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
+
+ #### Switching between stacks
+
+```
+pulumi stack select <stack name>
+```
+Make sure that before you try to select a stack you have logged into
+
+#### To rename a stack
+````
+pulumi stack rename
+````
+
 ## Deploying a Stack
 
 ### Configure your local workstation
@@ -65,7 +81,7 @@ cubl-pulumi/folio/dev/.pulumi
     Once logged in you can change the code for the stack and redeploy it. The state for the `dev` stack can be logged into like this:
 
     ```sh
-    pulumi login s3://cubl-pulumi/folio/dev
+    pulumi login s3://cubl-pulumi/folio
     ```
 
 1. Setting the PULUMI_CONFIG_PASSPHRASE
@@ -92,7 +108,7 @@ staging                                   n/a                      n/a
 test*                                     2 weeks ago              121
 ```
 
-### Interacting with Pulumi Configuration
+### Interacting with pulumi configuration
 
 ```sh
 # Show all pulumi configuration including secrets in plaintext
@@ -300,6 +316,28 @@ These are the steps for getting it all to work:
 7. Choose CNAME for record type.
 8. Rebuild the stripes container with the new okapi URL. See the Dockerfile and the `OKAPI_URL` variable there. See the instructions for building this container in /containers/folio/stripes.
 9. Change the tag in index.js for this container. Run `pulumi up`. Verify that the correctly tagged container is loaded in the pod by doing `describe pod`.
+
+### Getting colorado.edu certificates
+Fill out this form https://oit.colorado.edu/services/web-content-applications/ssl-certificates. This will generate a ticket for campus IT to work on the certificate request. Follow the instructions in the email that you get. For example, there is a second form that needs to be filled out to actually start the certificate issuance process through a 3rd party company that our IT contracts with.
+
+#### Generating a CSR
+To request a colorado.edu cert through the above process you will need to generate a CSR. This will be used below when you upload the cert to ACM. You can generate the CSR using `openssl` which you should have and if you don't install it brew or similar. The command is:
+
+```sh
+openssl req -nodes -newkey rsa:2048 -keyout <a name you chooose>.key -out <same name you choose>.csr
+```
+
+This will create 2 files locally. One is the CSR (`cat` it to see it) and the other is the key you'll need to verify your ownership when you upload it to ACM so keep these files handy.
+
+#### Importing colorado.edu certificates into ACM
+When the cert is issued you will get an email. From this email you need to download 2 files and `cat` out 2 strings which the ACM form wants. You'll also need the key that you generated with the CSR.
+1. The cert itself. Download it in PEM encoded format.
+2. The private signing key that the `openssl` command generated. Also in PEM.
+2. The cert along with the chain. This is actually 4 certs in one file. The email refers to this as the "cert with chain". All of this is PEM encoded.
+
+Paste these three things into the ACM console form for importing a new cert.
+
+For more information see: https://docs.aws.amazon.com/acm/latest/userguide/import-certificate-format.html
 
 ### Using a colorado.edu domain
 DNS for a colorado.edu domain isn't handled through our account's route 53. We do however manage the certificate in ACM for these subdomains so the ARN for <our subdomain>.colorado.edu is in ACM. Setting up the DNS record with campus OIT to this colorado.edu subomain will need to be similar to what we do for cublcta.com.
