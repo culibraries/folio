@@ -61,7 +61,9 @@ make html
 
 ## FOLIO Apps Documentation Markup Keys
 
-- App level should be enclosed with a single grave accent (found on tilde key next to the number 1 key) `` ` ``
+This is a style guide to help deferentiate different actions within the FOLIO LSP documentation
+
+- [App level](/apps/index) interactions should be enclosed with a single grave accent (found on tilde key next to the number 1 key) `` ` ``
 
     ```md
     `Users App`
