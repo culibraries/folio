@@ -61,22 +61,20 @@ make html
 
 ## FOLIO Apps Documentation Markup Keys
 
-1. App level should be enclosed with a single grave accent 
-[found on tilde key next to the number 1 key] (`)
+- App level should be enclosed with a single grave accent (found on tilde key next to the number 1 key) `` ` ``
 
-             `Users App` displays as 
+    ```md
+    `Users App`
+    ```
 
-`Users App`
+- Dropdown menus and click box titles should be enclosed with a single asterisk `*`
 
-2. Dropdown menus and click box titles should be enclosed with a single asterisk 
+    ```md
+    *Dropdown menu and click boxes*
+    ```
 
-            *Dropdown menu and click boxes* displays as
+- Radio buttons should be enclosed in double asterisks `**`
 
-*Dropdown menu and click boxes*  
-
-
-1. Radio buttons should be enclosed in double asterisks to mark in bold
-
-            **Radio buttons** displays as 
-
-**Radio buttons**
+    ```md
+    **Radio buttons**
+    ```
