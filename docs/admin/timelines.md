@@ -1,12 +1,20 @@
-# Project Management
+# Timelines
 
-## Timelines
+## Contract end dates
 
-### Contract end dates
+- Main Libraries Summon Contract Ends 2022-06-30
+- Law Millennium Contract Ends 2023-06-30
+- Main Libraries Sierra Contract Ends 2023-09-30
 
-- Summon Contract Ends 2022-06-30
-- Millennium Contract Ends 2023-06-30
-- Sierra Contract Ends 2023-09-30
+## Overview
+
+| |2022Q1|2022Q2|2022Q3|2022Q4|2023Q1|2023Q2|
+|-|-|-|-|-|-|-|
+||Replanning|EDS Deployment|Infrastructure and Data|Training and Documentation|Pre-Implementation|Implementation|
+|University<br /> Libraries|Review all critical tasks that are<br /> underway or not yet started that<br /> are required for a successful go-live<br /><br />Revise project schedule accordingly|Concentrate EDS deployment effort on<br /> configuring and implementing<br /> the new discovery layer over Sierra<br /><br />Expected go-live in the month of June|Continue iterating on repeatable<br /> infrastructure deployment<br /><br />Deploy Kiwi release<br /><br />Conclude data migration activities|Begin organization-wide<br /> training program<br /><br />Develop required functional and<br /> technical documentation|Deploy Lotus release|Complete readiness<br /> checklist for go-live|
+|Law|As above|Negotiate and finalize data<br /> migration contract with Index Data.|Begin data migration.|Participate in the Norlin<br /> training program.<br /><br />Develop required functional<br /> documentation specific to the<br /> needs of the Law Library|Conclude data migration<br /> activities.|As above|
+
+## Detailed timeline
 
 ```{mermaid}
   gantt
@@ -59,12 +67,11 @@
       Local notes/Statistical codes: 
 
       section Metadata - Data Import
-      Document active Sierra load profiles :active, 2022-02-28,2022-03-31
-      Annotate Sierra load profiles :2022-04-01,2022-06-30
-      Create basic profile :2022-09-01,2022-09-30
-      Creating and testing necessary profiles :2022-10-01,2022-11-31
-      Complete and Document Profiles :2022-12-01,2023-02-31
-
+      Document active Sierra load profiles :active, 2022-02-28, 4w
+      Annotate Sierra load profiles :2022-04-01, 8w
+      Create basic profile :2022-09-01, 3w
+      Create and test necessary profiles :2022-10-01, 6w
+      Complete and Document Profiles :2022-12-01, 6w
 ```
 
 ### Other data sources
