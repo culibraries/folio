@@ -59,7 +59,7 @@ cd docs
 make html
 ```
 
-## Documentation Markup Keys
+## FOLIO Apps Documentation Markup Keys
 
 1. App level should be enclosed with a single grave accent 
 [found on tilde key next to the number 1 key] (`)
