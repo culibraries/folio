@@ -48,9 +48,10 @@ Nolana initial release         2022.r3.0
    :caption: FOLIO Apps
    :hidden:
 
-   apps/index.rst   
-   settings/index.rst   
+   apps/index.rst
+   settings/index.rst
    configuration/index.rst
+   integrations/index.rst
 
 .. toctree::
    :maxdepth: 1
