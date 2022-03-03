@@ -49,9 +49,9 @@ Nolana initial release         2022.r3.0
    :hidden:
 
    apps/index.rst
+   integrations/index.rst
    settings/index.rst
    configuration/index.rst
-   integrations/index.rst
 
 .. toctree::
    :maxdepth: 1

@@ -2,9 +2,9 @@
 
 ## Contract end dates
 
-- Main Libraries Summon Contract Ends 2022-06-30
+- University Libraries Summon Contract Ends 2022-06-30
 - Law Millennium Contract Ends 2023-06-30
-- Main Libraries Sierra Contract Ends 2023-09-30
+- University Libraries Sierra Contract Ends 2023-09-30
 
 ## Overview
 
