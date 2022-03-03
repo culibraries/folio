@@ -30,6 +30,9 @@ export AWS_ACCESS_KEY_ID=<YOUR_ACCESS_KEY_ID> && export AWS_SECRET_ACCESS_KEY=<Y
 
 Clone this repo then run `npm install` in the `pulumi/folio` directory. We are sticking to npm for this project and not using yarn.
 
+## Terminology
+We use the term "dev" to refer to non-production environments serviced by the `*.cublcta.com` certificates. These environments can logically be for "testing", "scratch", "staging" or other purposes. The point is that "dev" is non-production. This arrangement allows for the wildcard cert to be used for any environment that is not production making mapping domain such as folio-iris.cublcta.com to a specific (staging, scratch, etc) in-cluster service much easier.
+
 ## Pulumi
 
 ### Stacks
@@ -331,9 +334,9 @@ This will create 2 files locally. One is the CSR (`cat` it to see it) and the ot
 
 #### Importing colorado.edu certificates into ACM
 When the cert is issued you will get an email. From this email you need to download 2 files and `cat` out 2 strings which the ACM form wants. You'll also need the key that you generated with the CSR.
-1. The cert itself. Download it in PEM encoded format.
+1. The cert itself. Download it in PEM encoded format. This is a `.cer` which you can `cat` to see and cut and paste.
 2. The private signing key that the `openssl` command generated. Also in PEM.
-2. The cert along with the chain. This is actually 4 certs in one file. The email refers to this as the "cert with chain". All of this is PEM encoded.
+2. The cert along with the chain. This is actually 4 certs in one file. The email refers to this as the "cert with chain". All of this is PEM encoded. This is also downloaded as a `.cer` file.
 
 Paste these three things into the ACM console form for importing a new cert.
 

@@ -151,6 +151,7 @@ export module deploy {
 
     /**
      * Deploy okapi along with a LoadBalancer service to handle external traffic.
+     * @param isDev Whether or not to deploy this resource as a dev resource or a production one.
      * @param module The module object for okapi.
      * @param certArn The AWS certificate ARN of the certificate that will be used to secure traffic.
      * @param cluster A reference to the k8s cluster.
@@ -158,8 +159,11 @@ export module deploy {
      * @param dependsOn The resources that okapi depends on being live before deploying.
      * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(module: FolioModule, certArn: string, cluster: eks.Cluster,
+    export function okapi(isDev: boolean, module: FolioModule, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
+
+        const resourceName = isDev ? "okapi-dev" : "okapi";
+
         const values = {
             // Get the image from the version associated with the release.
             image: {
@@ -203,7 +207,7 @@ export module deploy {
             }
         }
 
-        return deployHelmChart(module.name, cluster, namespace, values, dependsOn);
+        return deployHelmChart(resourceName, module.name, cluster, namespace, values, dependsOn);
     }
 
     /**
@@ -211,6 +215,7 @@ export module deploy {
      * from the folio container registry, this container must be built and deployed to a self-hosted
      * container repository. This also deploys a LoadBalancer service which provides external
      * access to the container.
+     * @param isDev Whether or not to deploy this resource as a dev resource or a production one.
      * @param repository The container repository to get the container from.
      * @param tag The tag of the build to use for the container.
      * @param certArn The AWS ARN of the cert to bind to the service.
@@ -219,10 +224,13 @@ export module deploy {
      * @param dependsOn Any dependencies.
      * @returns A reference to the helm release for this.
      */
-    export function stripes(repository: string, tag: string, certArn: string, cluster: eks.Cluster,
+    export function stripes(isDev:boolean, repository: string, tag: string, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
 
         // Platform complete is the somewhat oddly named folio-helm chart for deploying stripes.
+        // We deploy two different types, one for development certificates and URLs at *.cublcta.com
+        // and one for production at folio.colorado.edu.
+        const resourceName = isDev ? "platform-complete-dev" : "platform-complete";
         const chartName = "platform-complete";
 
         const values = {
@@ -265,7 +273,7 @@ export module deploy {
             // }
         }
 
-        return deployHelmChart(chartName, cluster, namespace, values, dependsOn);
+        return deployHelmChart(resourceName, chartName, cluster, namespace, values, dependsOn);
     }
 
     /**
@@ -280,7 +288,7 @@ export module deploy {
     export function modules(toDeploy: Array<FolioModule>,
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
-        okapiRelease: k8s.helm.v3.Release): Resource[] {
+        okapiReleases: k8s.helm.v3.Release[]): Resource[] {
 
         // Filter out okapi and the front-end modules. Okapi is deployed separately
         // prior to deploying the modules. Also, the front-end modules are only relevant
@@ -295,7 +303,7 @@ export module deploy {
             const values = getModuleValues(module);
 
             const moduleRelease =
-                deployHelmChart(module.name, cluster, namespace, values, [okapiRelease]);
+                deployHelmChart(module.name, cluster, namespace, values, okapiReleases);
             moduleReleases.push(moduleRelease);
         }
 
@@ -482,7 +490,8 @@ export module deploy {
     }
 
 
-    function deployHelmChart(chartName: string,
+    function deployHelmChart(resourceName: string,
+        chartName: string,
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
         values: object,
@@ -490,7 +499,7 @@ export module deploy {
         return new k8s.helm.v3.Release(chartName, {
             namespace: namespace.id,
 
-            name: chartName,
+            name: resourceName,
 
             chart: chartName,
 
