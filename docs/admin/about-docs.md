@@ -59,3 +59,24 @@ cd docs
 make html
 ```
 
+## Documentation Markup Keys
+
+1. App level should be enclosed with a single grave accent 
+[found on tilde key next to the number 1 key] (`)
+
+             `Users App` displays as 
+
+`Users App`
+
+2. Dropdown menus and click box titles should be enclosed with a single asterisk 
+
+            *Dropdown menu and click boxes* displays as
+
+*Dropdown menu and click boxes*  
+
+
+1. Radio buttons should be enclosed in double asterisks to mark in bold
+
+            **Radio buttons** displays as 
+
+**Radio buttons**
