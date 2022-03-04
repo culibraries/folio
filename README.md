@@ -1,6 +1,6 @@
 # FOLIO at CU
 
-Project management and source code for FOLIO at University of Colorado Boulder University Libraries.
+Project management, documentation, and mono-repo for FOLIO at University of Colorado Boulder University Libraries.
 
 ## FOLIO deployment steps
 1. Optionally create a new Pulumi stack for the new deployment if needed. Potentially set new config variables in pulumi for the stack.
