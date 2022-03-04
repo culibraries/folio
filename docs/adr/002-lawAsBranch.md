@@ -1,4 +1,4 @@
-# [short title of solved problem and solution]
+# Law as a Branch in a single FOLIO instance
 
 * Status: [accepted]
 * Deciders: CU FOLIO Priorities and Planning Council (PPC)

@@ -1,4 +1,4 @@
-# [short title of solved problem and solution]
+# Template [short title of solved problem and solution]
 
 * Status: [proposed | rejected | accepted | deprecated | … | superseded by [0005-newSolution](0005-newSolution.md)] <!-- optional -->
 * Deciders: [list everyone involved in the decision] <!-- optional -->
