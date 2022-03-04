@@ -223,7 +223,9 @@ Then try: `curl http://localhost:9000/_/proxy/tenants/cubl/modules` to see what 
 ## Hooking up a custom domain and SSL
 Okapi and stripes are each open to the outside world through a k8s LoadBalancer service. Okapi is exposed on port 9130 which is important because that's where in-cluster requests to okapi expect it to be. Stripes is exposed on port 443. These load balancer services each receive an external hostname which is available when you do `describe service`. Hitting this domain directly will time out since each LoadBalancer has annotations which enforce SSL, which requires a certificate.
 
-These are the steps for getting it all to work:
+You can get a colorado.edu domain or use our *.cublcta.com domain. The steps are quite different. You'll likely want a non-colorado.edu domain if you're creating a new cluster for testing. (There should already be some created so ask for help on this if you don't know what to do.)
+
+Steps to use a non-colorado.edu domain:
 1. Get the ARN of the certificate you wish to use from the AWS certificate manager.
 2. Assign this to the variable in index.ts for the cert ARN.
 3. Redeploy by running `pulumi up`. The kubernetes deployments that use this ARN will update. Verify this by doing `describe service`. The annotation should now contain the cert ARN.
@@ -237,7 +239,13 @@ These are the steps for getting it all to work:
 ### Getting colorado.edu certificates
 Fill out this form https://oit.colorado.edu/services/web-content-applications/ssl-certificates. This will generate a ticket for campus IT to work on the certificate request. Follow the instructions in the email that you get. For example, there is a second form that needs to be filled out to actually start the certificate issuance process through a 3rd party company that our IT contracts with.
 
-#### Generating a CSR
+#### Steps
+
+##### Step 1 - Fill out this form to get OIT going on it
+
+https://oit.colorado.edu/services/web-content-applications/ssl-certificates
+
+##### Step 2 - Generate the CSR
 To request a colorado.edu cert through the above process you will need to generate a CSR. This will be used below when you upload the cert to ACM. You can generate the CSR using `openssl` which you should have and if you don't install it brew or similar. The command is:
 
 ```sh
@@ -245,6 +253,16 @@ openssl req -nodes -newkey rsa:2048 -keyout <a name you chooose>.key -out <same 
 ```
 
 This will create 2 files locally. One is the CSR (`cat` it to see it) and the other is the key you'll need to verify your ownership when you upload it to ACM so keep these files handy.
+
+##### Step 3 - Request the cert itself
+Visit the Comodo portal here: https://hard.cert-manager.com/customer/cuboulder/ssl
+Enter for access code: <ask for this>
+Use the contact email address (must be a colorado.edu or affiliate domain) for the cert as the login email account.
+Click Check access code.
+Enter the details for your system. Be sure to remember the password as you will need it to download the certificate after it is approved.
+If your certificate is for a Microsoft Exchange Server or requires subject alternate names, make sure to select the Comodo Unified Communications Certificate as the certificate type, and to input your requested alternate names in the provided field.
+Read the terms of the Subscriber Agreement and check the I agree checkbox.
+Click Submit.
 
 #### Importing colorado.edu certificates into ACM
 When the cert is issued you will get an email. From this email you need to download 2 files and `cat` out 2 strings which the ACM form wants. You'll also need the key that you generated with the CSR.
