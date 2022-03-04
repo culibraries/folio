@@ -59,3 +59,24 @@ cd docs
 make html
 ```
 
+## FOLIO Apps Documentation Markup Keys
+
+This is a style guide to help deferentiate different actions within the FOLIO LSP documentation
+
+- [App level](/apps/index) interactions should be enclosed with a single grave accent (found on tilde key next to the number 1 key) `` ` ``
+
+    ```md
+    `Users App`
+    ```
+
+- Dropdown menus and click box titles should be enclosed with a single asterisk `*`
+
+    ```md
+    *Dropdown menu and click boxes*
+    ```
+
+- Radio buttons should be enclosed in double asterisks `**`
+
+    ```md
+    **Radio buttons**
+    ```
