@@ -55,7 +55,7 @@ Nolana initial release         2022.r3.0
 
 .. toctree::
    :maxdepth: 1
-   :caption: New OnSearch
+   :caption: New OneSearch
    :hidden:
 
    onesearch/index.rst
