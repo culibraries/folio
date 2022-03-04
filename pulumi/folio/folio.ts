@@ -171,7 +171,7 @@ export module deploy {
                 repository: `${module.containerRepository}/${module.name}`
             },
 
-            fullnameOverride: module.name,
+            fullnameOverride: resourceName,
 
             // For documentation on the annotations and other configuration options see:
             // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
@@ -240,7 +240,7 @@ export module deploy {
                 repository: repository
             },
 
-            fullnameOverride: chartName,
+            fullnameOverride: resourceName,
 
             // For documentation on the annotations and other configuration options see:
             // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
@@ -303,7 +303,7 @@ export module deploy {
             const values = getModuleValues(module);
 
             const moduleRelease =
-                deployHelmChart(module.name, cluster, namespace, values, okapiReleases);
+                deployHelmChart(module.name, module.name, cluster, namespace, values, okapiReleases);
             moduleReleases.push(moduleRelease);
         }
 
@@ -396,7 +396,7 @@ export module deploy {
         const shouldCreateSuperuser: boolean =
             prepare.shouldCreateSuperuser(fd.deploymentConfigurationFilePath);
 
-            // When FLAGS is empty the job will attempt to create the superuser.
+        // When FLAGS is empty the job will attempt to create the superuser.
         // This should only be done once for a deployment so be careful about manually
         // changing the value of createSuperuser in the deployment config file.
         // See https://github.com/folio-org/folio-helm/blob/master/docker/bootstrap-superuser
@@ -496,7 +496,7 @@ export module deploy {
         namespace: k8s.core.v1.Namespace,
         values: object,
         dependsOn?: Resource[]): k8s.helm.v3.Release {
-        return new k8s.helm.v3.Release(chartName, {
+        return new k8s.helm.v3.Release(resourceName, {
             namespace: namespace.id,
 
             name: resourceName,
