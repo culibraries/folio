@@ -325,26 +325,24 @@ const productionOkapiCertArn:string =
     "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
-const cublCtaOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(true, okapiModule,
-    cublCtaCertArn, folioCluster, folioNamespace, [pgCluster, ...clusterInstances,
-    dbConnectSecret, s3CredentialsDataExportSecret, s3CredentialsSecret, configMap,
-    kafkaInstance, dbCreateJob]);
-
-const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(false, okapiModule,
+const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModule,
     productionOkapiCertArn, folioCluster, folioNamespace, [pgCluster, ...clusterInstances,
     dbConnectSecret, s3CredentialsDataExportSecret, s3CredentialsSecret, configMap,
     kafkaInstance, dbCreateJob]);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
+// const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
+//     [cublCtaOkapiRelease, productionOkapiRelease]);
+
 const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
-    [cublCtaOkapiRelease, productionOkapiRelease]);
+    [productionOkapiRelease]);
 
 // These deploy with the name "platform-complete-dev or platform-complete for prod".
 // These tags and containers are the result of a manual build process. See the readme in the
 // containers/folio/stripes directory for how to do that.
-folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", cublCtaCertArn,
+folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", productionCertArn,
     folioCluster, folioNamespace, [...moduleReleases]);
-folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", productionCertArn,
+folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
     folioCluster, folioNamespace, [...moduleReleases]);
 
 // TODO should we be pushing the deployment descriptors for front end modules at all?

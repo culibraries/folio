@@ -151,7 +151,6 @@ export module deploy {
 
     /**
      * Deploy okapi along with a LoadBalancer service to handle external traffic.
-     * @param isDev Whether or not to deploy this resource as a dev resource or a production one.
      * @param module The module object for okapi.
      * @param certArn The AWS certificate ARN of the certificate that will be used to secure traffic.
      * @param cluster A reference to the k8s cluster.
@@ -159,10 +158,8 @@ export module deploy {
      * @param dependsOn The resources that okapi depends on being live before deploying.
      * @returns A reference to the helm release object for this deployment.
      */
-    export function okapi(isDev: boolean, module: FolioModule, certArn: string, cluster: eks.Cluster,
+    export function okapi(module: FolioModule, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
-
-        const resourceName = isDev ? "okapi-dev" : "okapi";
 
         const values = {
             // Get the image from the version associated with the release.
@@ -171,7 +168,7 @@ export module deploy {
                 repository: `${module.containerRepository}/${module.name}`
             },
 
-            fullnameOverride: resourceName,
+            fullnameOverride: module.name,
 
             // For documentation on the annotations and other configuration options see:
             // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
@@ -207,7 +204,7 @@ export module deploy {
             }
         }
 
-        return deployHelmChart(resourceName, module.name, cluster, namespace, values, dependsOn);
+        return deployHelmChart(module.name, module.name, cluster, namespace, values, dependsOn);
     }
 
     /**
