@@ -56,15 +56,14 @@
       EDS over Sierra   :active, d1, 2022-02-21, 12w
       Relevancy Testing  :12w
 
-
       section Metadata - Deep Dives
-      Bulk Edit: 
-      Deleting Records: 
       Data Export: 2022-09-01,2022-09-30
       Bound-withs: 2022-09-01,2022-10-15
-      Authority Control: 
       Data Import: 2022-07-01,2022-09-01
+      Bulk Edit: 
+      Deleting Records: 
       Local notes/Statistical codes: 
+      Authority Control: 
 
       section Metadata - Data Import
       Document active Sierra load profiles :active, 2022-02-28, 4w
@@ -72,6 +71,13 @@
       Create basic profile :2022-09-01, 3w
       Create and test necessary profiles :2022-10-01, 6w
       Complete and Document Profiles :2022-12-01, 6w
+
+      section Metadata - Single Record
+      Copy Cataloging: 2022-03-15, 2w
+      Original Cataloging: 2022-03-15, 2w
+      Brief Bibs: 2022-04-01, 2w
+      Overlaying Bibs: 2022-04-01, 2w
+
 ```
 
 ### Other data sources
