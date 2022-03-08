@@ -1,8 +1,9 @@
 FROM node:15-alpine as stripes_build
 
-ARG OKAPI_URL=https://folio-iris-okapi.cublcta.com:9130
+# OKAPI_URL must be passed as a --build-arg to this Dockerfile.
+ARG OKAPI_URL
+RUN echo Building stripes with okapi url: $OKAPI_URL
 ARG TENANT_ID=cubl
-
 RUN mkdir -p /etc/folio/stripes
 WORKDIR /etc/folio/stripes
 

@@ -1,4 +1,4 @@
-# Pulumi for deploying AWS and Kubernetes resources
+# Pulumi for deploying FOLIO
 
 This is a typescript [pulumi](https://www.pulumi.com/docs) project. Pulumi is both a command line interface and a set of APIs for building cloud resources with code. This project was created using the `pulumi new aws-typescript` command. This project is mostly about using pulumi to build things in kubernetes backed by AWS.
 
@@ -56,6 +56,22 @@ cubl-pulumi/folio/dev/.pulumi
 
 **When creating a new stack, check the s3 bucket to make sure it is ending up in a project directory like other stacks.**
 
+#### Creating a new stack
+
+ To create a new stack do `pulumi stack init`. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
+
+ #### Switching between stacks
+
+```
+pulumi stack select <stack name>
+```
+Make sure that before you try to select a stack you have logged into
+
+#### To rename a stack
+````
+pulumi stack rename
+````
+
 ## Deploying a Stack
 
 ### Configure your local workstation
@@ -65,7 +81,7 @@ cubl-pulumi/folio/dev/.pulumi
     Once logged in you can change the code for the stack and redeploy it. The state for the `dev` stack can be logged into like this:
 
     ```sh
-    pulumi login s3://cubl-pulumi/folio/dev
+    pulumi login s3://cubl-pulumi/folio
     ```
 
 1. Setting the PULUMI_CONFIG_PASSPHRASE
@@ -92,7 +108,7 @@ staging                                   n/a                      n/a
 test*                                     2 weeks ago              121
 ```
 
-### Interacting with Pulumi Configuration
+### Interacting with pulumi configuration
 
 ```sh
 # Show all pulumi configuration including secrets in plaintext
@@ -182,6 +198,92 @@ This will destroy all the resources that are running. There's no need to do this
 
 This operation may not always work as expected. When things go wrong do `pulumi destroy --help` to get a sense of your options. Refreshing the stack's state before destroying has been known to help. Also setting the debug flag is never a bad idea. To do both of these things try `pulumi destroy -r -d`.
 
+## Working with jobs
+We are using kubernetes jobs in a number of places:
+* To run certain database operations
+* To register modules with okapi
+* To create or update the superuser
+
+These jobs hang around after they are run. We could set `ttlSecondsAfterFinished` and have them disappear after a time. This has a number of downsides. One is that the logs for the job, which are present in the pod that is created as part of the job, also disappear. Diagnosing problems is much easier if the logs hang around.
+
+Jobs that have run and completed do not consume resources.
+
+Once a job has run successfully, as far as pulumi is concerned, it is done and won't be run again, unless it is removed. This makes jobs that should run on every change to the cluster somewhat hard to manage. Our job that creates or updates the superuser ideally would run after any new modules were added or removed. To make this happen, you have to manually remove the job either by commenting it out of index.ts, or deleting it with helm and removing it from the state with `pulumi state delete <urn>`.
+
+The idea of jobs that run every time `pulumi up` runs is a bit foreign to pulumi. As a workaround we may want to script our invocation of pulumi and do `pulumi destroy --target <job to destroy>` to first remove a resource before running `pulumi up`.
+
+## Connecting to the cluster before it is exposed
+It is highly useful to be able to connect to okapi before it is exposed. Do this by port forwarding your localhost to okapi.
+
+```shell
+kubectl -n <namespace> port-forward <okapi pod name> 9000:9130
+```
+Then try: `curl http://localhost:9000/_/proxy/tenants/cubl/modules` to see what modules have been successfully enabled for the tenant.
+
+## Hooking up a custom domain and SSL
+Okapi and stripes are each open to the outside world through a k8s LoadBalancer service. Okapi is exposed on port 9130 which is important because that's where in-cluster requests to okapi expect it to be. Stripes is exposed on port 443. These load balancer services each receive an external hostname which is available when you do `describe service`. Hitting this domain directly will time out since each LoadBalancer has annotations which enforce SSL, which requires a certificate.
+
+You can get a colorado.edu domain or use our *.cublcta.com domain. The steps are quite different. You'll likely want a non-colorado.edu domain if you're creating a new cluster for testing. (There should already be some created so ask for help on this if you don't know what to do.)
+
+Steps to use a non-colorado.edu domain:
+1. Get the ARN of the certificate you wish to use from the AWS certificate manager.
+2. Assign this to the variable in index.ts for the cert ARN.
+3. Redeploy by running `pulumi up`. The kubernetes deployments that use this ARN will update. Verify this by doing `describe service`. The annotation should now contain the cert ARN.
+4. Go to route 53 in the AWS console.
+5. Click on Hosted Zones and add an entry in cublcta.com like folio-iris.cublcta.com. Add a second one for okapi.
+6. Paste the host from each k8s service that you got when doing `describe service` in the Value field of each hosted zone entry.
+7. Choose CNAME for record type.
+8. Rebuild the stripes container with the new okapi URL. See the Dockerfile and the `OKAPI_URL` variable there. See the instructions for building this container in /containers/folio/stripes.
+9. Change the tag in index.js for this container. Run `pulumi up`. Verify that the correctly tagged container is loaded in the pod by doing `describe pod`.
+
+### Getting colorado.edu certificates
+Fill out this form https://oit.colorado.edu/services/web-content-applications/ssl-certificates. This will generate a ticket for campus IT to work on the certificate request. Follow the instructions in the email that you get. For example, there is a second form that needs to be filled out to actually start the certificate issuance process through a 3rd party company that our IT contracts with.
+
+#### Steps
+
+##### Step 1 - Fill out this form to get OIT going on it
+
+https://oit.colorado.edu/services/web-content-applications/ssl-certificates
+
+##### Step 2 - Generate the CSR
+To request a colorado.edu cert through the above process you will need to generate a CSR. This will be used below when you upload the cert to ACM. You can generate the CSR using `openssl` which you should have and if you don't install it brew or similar. The command is:
+
+```sh
+openssl req -nodes -newkey rsa:2048 -keyout <a name you chooose>.key -out <same name you choose>.csr
+```
+
+This will create 2 files locally. One is the CSR (`cat` it to see it) and the other is the key you'll need to verify your ownership when you upload it to ACM so keep these files handy.
+
+##### Step 3 - Request the cert itself
+Visit the Comodo portal here: https://hard.cert-manager.com/customer/cuboulder/ssl
+Enter for access code: <ask for this>
+Use the contact email address (must be a colorado.edu or affiliate domain) for the cert as the login email account.
+Click Check access code.
+Enter the details for your system. Be sure to remember the password as you will need it to download the certificate after it is approved.
+If your certificate is for a Microsoft Exchange Server or requires subject alternate names, make sure to select the Comodo Unified Communications Certificate as the certificate type, and to input your requested alternate names in the provided field.
+Read the terms of the Subscriber Agreement and check the I agree checkbox.
+Click Submit.
+
+#### Importing colorado.edu certificates into ACM
+When the cert is issued you will get an email. From this email you need to download 2 files and `cat` out 2 strings which the ACM form wants. You'll also need the key that you generated with the CSR.
+1. The cert itself. Download it in PEM encoded format. This is a `.cer` which you can `cat` to see and cut and paste.
+2. The private signing key that the `openssl` command generated. Also in PEM.
+2. The cert along with the chain. This is actually 4 certs in one file. The email refers to this as the "cert with chain". All of this is PEM encoded. This is also downloaded as a `.cer` file.
+
+Paste these three things into the ACM console form for importing a new cert.
+
+For more information see: https://docs.aws.amazon.com/acm/latest/userguide/import-certificate-format.html
+
+### Using a colorado.edu domain
+DNS for a colorado.edu domain isn't handled through our account's route 53. We do however manage the certificate in ACM for these subdomains so the ARN for `<our subdomain>.colorado.edu` is in ACM. Setting up the DNS record with campus OIT to this colorado.edu subomain will need to be similar to what we do for cublcta.com.
+
+### Swapping out deployments
+TODO Changing the route 53 or the DNS entry that is mapping to the two LoadBalancer endpoints should be all that is necessary. However, for this type of swap to work, we would need for the stripes okapi url to detect this change update automatically.
+
+## References
+* [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
+* [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)
+
 ## Notes
 
 ### Public and private subnets
@@ -264,49 +366,3 @@ Often when first deploying something via helm via pulumi, the deployment may fai
 ```shell
 helm delete <name> --namespace <kubernetes namespace>
 ```
-
-## Working with jobs
-We are using kubernetes jobs in a number of places:
-* To run certain database operations
-* To register modules with okapi
-* To create or update the superuser
-
-These jobs hang around after they are run. We could set `ttlSecondsAfterFinished` and have them disappear after a time. This has a number of downsides. One is that the logs for the job, which are present in the pod that is created as part of the job, also disappear. Diagnosing problems is much easier if the logs hang around.
-
-Jobs that have run and completed do not consume resources.
-
-Once a job has run successfully, as far as pulumi is concerned, it is done and won't be run again, unless it is removed. This makes jobs that should run on every change to the cluster somewhat hard to manage. Our job that creates or updates the superuser ideally would run after any new modules were added or removed. To make this happen, you have to manually remove the job either by commenting it out of index.ts, or deleting it with helm and removing it from the state with `pulumi state delete <urn>`.
-
-The idea of jobs that run every time `pulumi up` runs is a bit foreign to pulumi. As a workaround we may want to script our invocation of pulumi and do `pulumi destroy --target <job to destroy>` to first remove a resource before running `pulumi up`.
-
-## Connecting to the cluster before it is exposed
-It is highly useful to be able to connect to okapi before it is exposed. Do this by port forwarding your localhost to okapi.
-
-```shell
-kubectl -n <namespace> port-forward <okapi pod name> 9000:9130
-```
-Then try: `curl http://localhost:9000/_/proxy/tenants/cubl/modules` to see what modules have been successfully enabled for the tenant.
-
-## Hooking up a custom domain and SSL
-Okapi and stripes are each open to the outside world through a k8s LoadBalancer service. Okapi is exposed on port 9130 which is important because that's where in-cluster requests to okapi expect it to be. Stripes is exposed on port 443. These load balancer services each receive an external hostname which is available when you do `describe service`. Hitting this domain directly will time out since each LoadBalancer has annotations which enforce SSL, which requires a certificate.
-
-These are the steps for getting it all to work:
-1. Get the ARN of the certificate you wish to use from the AWS certificate manager.
-2. Assign this to the variable in index.ts for the cert ARN.
-3. Redeploy by running `pulumi up`. The kubernetes deployments that use this ARN will update. Verify this by doing `describe service`. The annotation should now contain the cert ARN.
-4. Go to route 53 in the AWS console.
-5. Click on Hosted Zones and add an entry in cublcta.com like folio-iris.cublcta.com. Add a second one for okapi.
-6. Paste the host from each k8s service that you got when doing `describe service` in the Value field of each hosted zone entry.
-7. Choose CNAME for record type.
-8. Rebuild the stripes container with the new okapi URL. See the Dockerfile and the `OKAPI_URL` variable there. See the instructions for building this container in /containers/folio/stripes.
-9. Change the tag in index.js for this container. Run `pulumi up`. Verify that the correctly tagged container is loaded in the pod by doing `describe pod`.
-
-### Using a colorado.edu domain
-DNS for a colorado.edu domain isn't handled through our account's route 53. We do however manage the certificate in ACM for these subdomains so the ARN for <our subdomain>.colorado.edu is in ACM. Setting up the DNS record with campus OIT to this colorado.edu subomain will need to be similar to what we do for cublcta.com.
-
-### Swapping out deployments
-TODO Changing the route 53 or the DNS entry that is mapping to the two LoadBalancer endpoints should be all that is necessary. However, for this type of swap to work, we would need for the stripes okapi url to detect this change update automatically.
-
-## References
-* [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
-* [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)

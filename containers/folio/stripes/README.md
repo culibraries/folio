@@ -4,7 +4,7 @@ Container is based on the one found here: https://github.com/folio-org/platform-
 
 ## Changing the hostname for the Stripes frontend
 
-- Update hostname in `Dockerfile` and `stripes.config.js`.
+- Update hostname in `Dockerfile`. This overrides the url in stripes.config.js so no need to change that.
 - Build and deploy the container
 
 ## Getting the correct versions of packages
@@ -19,13 +19,24 @@ These files can be found on the release branches of the `folio-org/platform-comp
 
 - [ ] TODO figure out what the `renovate.js` file in the folio repo is for.
 
-## Building the container
+## Building the containers
+Versioning is intended to reflect the FOLIO release and our iterations for that release  `<env>.YYYY.<release>.<build number>`. Example: For the production third build of our Stripes frontend for Iris (2nd release of 2021), the version number would be `2021.r2.3`. For non production stripes consider: `dev.2021.r2.3`. `Build` numbering will start at `1` for each release.
 
-Versioning is intended to reflect the FOLIO release and our iterations for that release  `YYYY.release.build`. Example: For the third build of our Stripes frontend for Iris (2nd release of 2021), the version number would be `2021.r2.3`. `Build` numbering will start at `1` for each release.
+These releases can then be applied to the cluster via variables in the index.ts file.
 
-```shell
-docker build -t ghcr.io/culibraries/folio_stripes:<version> .
+To build the stripes container that services non-production environments do:
+
+```sh
+docker build -t ghcr.io/culibraries/folio_stripes:<version> --build-arg OKAPI_URL=https://folio-iris-okapi.cublcta.com:9130 .
 ```
+
+To build the stripes container that services production environments do:
+
+```sh
+docker build -t ghcr.io/culibraries/folio_stripes:<version> --build-arg OKAPI_URL=https://okapi.colorado.edu:9130 .
+```
+
+**We use the term "dev" here to refer to non-production environments serviced by the `*.cublcta.com` certificates. These environments can logically be for "testing", "scratch", "staging" or other purposes. The point is that "dev" is non-production.**
 
 ### Give docker enough memory
 Stripes requires a fair amount of RAM to build.
