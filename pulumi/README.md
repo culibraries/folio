@@ -280,6 +280,13 @@ DNS for a colorado.edu domain isn't handled through our account's route 53. We d
 ### Swapping out deployments
 TODO Changing the route 53 or the DNS entry that is mapping to the two LoadBalancer endpoints should be all that is necessary. However, for this type of swap to work, we would need for the stripes okapi url to detect this change update automatically.
 
+### Getting the namespace of a current deployment
+
+```sh
+pulumi stack output folioNamespaceName
+```
+
+
 ## References
 * [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
 * [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)
@@ -366,3 +373,12 @@ Often when first deploying something via helm via pulumi, the deployment may fai
 ```shell
 helm delete <name> --namespace <kubernetes namespace>
 ```
+
+### Getting 'too many open files' error when running `pulumi up`
+
+This can manifest in a lot of different errors, that appear to be related to networking or other things, but they alls share a common thread which is a message like `too many open files`. The solution is to increase your file limit from the default on MacOS which is 256.
+```sh
+limit -n 2048
+```
+
+If you get an error when trying to set this, restart your terminal session and you should be ok.

@@ -135,9 +135,9 @@ const dbSubnetGroup = new aws.rds.SubnetGroup("folio-db-subnet", {
 
 // TODO Does this need to be renamed when deleting a cluster?
 // See https://github.com/hashicorp/terraform/issues/5753
-export const pgFinalSnapshotId = "folio-pg-cluster-final-snapshot-0";
-export const pgClusterId = "folio-pg-cluster";
-const clusterName = "folio-pg";
+const clusterName = pulumi.getStack() === "scratch" ? "folio-pg-scratch" : "folio-pg";
+export const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
+export const pgClusterId = `${clusterName}-cluster`;
 const pgCluster = new aws.rds.Cluster(clusterName, {
     tags: tags,
 
@@ -179,11 +179,12 @@ const pgCluster = new aws.rds.Cluster(clusterName, {
     // group.
     vpcSecurityGroupIds: [ folioSecurityGroup.id ],
 });
+
 const clusterInstances: aws.rds.ClusterInstance[] = [];
 for (const range = { value: 0 }; range.value < 2; range.value++) {
-    clusterInstances.push(new aws.rds.ClusterInstance(`folio-pg-cluster-instance-${range.value}`, {
+    clusterInstances.push(new aws.rds.ClusterInstance(`${clusterName}-cluster-instance-${range.value}`, {
         tags: tags,
-        identifier: `folio-pg-cluster-instance-${range.value}`,
+        identifier: `${clusterName}-cluster-instance-${range.value}`,
         clusterIdentifier: pgCluster.id,
         instanceClass: "db.r6g.large",
         engine: "aurora-postgresql",
@@ -324,50 +325,47 @@ const productionCertArn:string =
 const productionOkapiCertArn:string =
     "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
 
-// Deploy okapi first, being sure that other dependencies have deployed first.
+// // Deploy okapi first, being sure that other dependencies have deployed first.
 const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModule,
     productionOkapiCertArn, folioCluster, folioNamespace, [pgCluster, ...clusterInstances,
     dbConnectSecret, s3CredentialsDataExportSecret, s3CredentialsSecret, configMap,
     kafkaInstance, dbCreateJob]);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
-// const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
-//     [cublCtaOkapiRelease, productionOkapiRelease]);
-
 const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
     [productionOkapiRelease]);
 
-// These deploy with the name "platform-complete-dev or platform-complete for prod".
-// These tags and containers are the result of a manual build process. See the readme in the
-// containers/folio/stripes directory for how to do that.
-folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", productionCertArn,
-    folioCluster, folioNamespace, [...moduleReleases]);
-folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
-    folioCluster, folioNamespace, [...moduleReleases]);
+// // These deploy with the name "platform-complete-dev or platform-complete for prod".
+// // These tags and containers are the result of a manual build process. See the readme in the
+// // containers/folio/stripes directory for how to do that.
+// folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", productionCertArn,
+//     folioCluster, folioNamespace, [...moduleReleases]);
+// folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
+//     folioCluster, folioNamespace, [...moduleReleases]);
 
-// TODO should we be pushing the deployment descriptors for front end modules at all?
-// NOTE folio-helm does, whereas TAMU does not.
-// Should we run these as separate jobs? Because right now if I add another module
-// I have to delete and recreate the job whereas which then re-registers every module
-// taking quite a while. This might work better if there was 1 pod per job so each
-// per job. Alternatively we just move this out of pulumi completely.
-const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
-    folioNamespace, folioCluster, modules, [...moduleReleases]);
+// // TODO should we be pushing the deployment descriptors for front end modules at all?
+// // NOTE folio-helm does, whereas TAMU does not.
+// // Should we run these as separate jobs? Because right now if I add another module
+// // I have to delete and recreate the job whereas which then re-registers every module
+// // taking quite a while. This might work better if there was 1 pod per job so each
+// // per job. Alternatively we just move this out of pulumi completely.
+// const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
+//     folioNamespace, folioCluster, modules, [...moduleReleases]);
 
-// TODO Determine if the Helm chart takes care of the following:
-// Create hazelcast service account
-// Create hazelcast configmap
+// // TODO Determine if the Helm chart takes care of the following:
+// // Create hazelcast service account
+// // Create hazelcast configmap
 
-const superUserName = config.requireSecret("superuser-name");
-const superUserPassword = config.requireSecret("superuser-password");
-// TODO We need a job to register the modules. We have a script for it, but not
-// yet a job. This can't be run until that has taken place so commenting out for
-// now.
-// const modRegistrationJob = folio.deploy.bootstrapSuperuser
-//     ("mod-reg-and-bootstrap-superuser",
-//     pulumi.interpolate`${superUserName}`,
-//     pulumi.interpolate`${superUserPassword}`,
-//     folioDeployment,
-//     folioNamespace,
-//     folioCluster,
-//     [modDescriptorJob]);
+// const superUserName = config.requireSecret("superuser-name");
+// const superUserPassword = config.requireSecret("superuser-password");
+// // TODO We need a job to register the modules. We have a script for it, but not
+// // yet a job. This can't be run until that has taken place so commenting out for
+// // now.
+// // const modRegistrationJob = folio.deploy.bootstrapSuperuser
+// //     ("mod-reg-and-bootstrap-superuser",
+// //     pulumi.interpolate`${superUserName}`,
+// //     pulumi.interpolate`${superUserPassword}`,
+// //     folioDeployment,
+// //     folioNamespace,
+// //     folioCluster,
+// //     [modDescriptorJob]);
