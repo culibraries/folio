@@ -1,4 +1,5 @@
-# This will update the reset url for 
+# This will update the reset url for the password reset url in users-bl. This
+# is essential to run after every deployment.
 
 # This script requires that you have set the following in your environment:
 # - TOKEN
@@ -7,9 +8,9 @@
 
 # See get-configs.sh for how to get the entry id for a given deployment.
 ENTRY_ID="f78111a8-d8a7-4809-a09b-c4f6091ec18c"
-OKAPI="https://folio-iris-okapi.cublcta.com:9130"
+OKAPI="https://okapi.colorado.edu:9130"
 # This is not OKAPI but the route for stripes. Very important.
-RESET_URL="https://folio-iris.cublcta.com"
+RESET_URL="https://folio.colorado.edu"
 CONFIG=$(cat <<EOF
     {
         "module": "USERSBL",

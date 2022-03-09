@@ -160,6 +160,7 @@ export module deploy {
      */
     export function okapi(module: FolioModule, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
+
         const values = {
             // Get the image from the version associated with the release.
             image: {
@@ -203,7 +204,7 @@ export module deploy {
             }
         }
 
-        return deployHelmChart(module.name, cluster, namespace, values, dependsOn);
+        return deployHelmChart(module.name, module.name, cluster, namespace, values, dependsOn);
     }
 
     /**
@@ -211,6 +212,7 @@ export module deploy {
      * from the folio container registry, this container must be built and deployed to a self-hosted
      * container repository. This also deploys a LoadBalancer service which provides external
      * access to the container.
+     * @param isDev Whether or not to deploy this resource as a dev resource or a production one.
      * @param repository The container repository to get the container from.
      * @param tag The tag of the build to use for the container.
      * @param certArn The AWS ARN of the cert to bind to the service.
@@ -219,10 +221,13 @@ export module deploy {
      * @param dependsOn Any dependencies.
      * @returns A reference to the helm release for this.
      */
-    export function stripes(repository: string, tag: string, certArn: string, cluster: eks.Cluster,
+    export function stripes(isDev:boolean, repository: string, tag: string, certArn: string, cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace, dependsOn: Resource[]): k8s.helm.v3.Release {
 
         // Platform complete is the somewhat oddly named folio-helm chart for deploying stripes.
+        // We deploy two different types, one for development certificates and URLs at *.cublcta.com
+        // and one for production at folio.colorado.edu.
+        const resourceName = isDev ? "platform-complete-dev" : "platform-complete";
         const chartName = "platform-complete";
 
         const values = {
@@ -232,7 +237,7 @@ export module deploy {
                 repository: repository
             },
 
-            fullnameOverride: chartName,
+            fullnameOverride: resourceName,
 
             // For documentation on the annotations and other configuration options see:
             // https://aws.amazon.com/premiumsupport/knowledge-center/terminate-https-traffic-eks-acm/
@@ -265,7 +270,7 @@ export module deploy {
             // }
         }
 
-        return deployHelmChart(chartName, cluster, namespace, values, dependsOn);
+        return deployHelmChart(resourceName, chartName, cluster, namespace, values, dependsOn);
     }
 
     /**
@@ -280,7 +285,7 @@ export module deploy {
     export function modules(toDeploy: Array<FolioModule>,
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
-        okapiRelease: k8s.helm.v3.Release): Resource[] {
+        okapiReleases: k8s.helm.v3.Release[]): Resource[] {
 
         // Filter out okapi and the front-end modules. Okapi is deployed separately
         // prior to deploying the modules. Also, the front-end modules are only relevant
@@ -295,7 +300,7 @@ export module deploy {
             const values = getModuleValues(module);
 
             const moduleRelease =
-                deployHelmChart(module.name, cluster, namespace, values, [okapiRelease]);
+                deployHelmChart(module.name, module.name, cluster, namespace, values, okapiReleases);
             moduleReleases.push(moduleRelease);
         }
 
@@ -388,7 +393,7 @@ export module deploy {
         const shouldCreateSuperuser: boolean =
             prepare.shouldCreateSuperuser(fd.deploymentConfigurationFilePath);
 
-            // When FLAGS is empty the job will attempt to create the superuser.
+        // When FLAGS is empty the job will attempt to create the superuser.
         // This should only be done once for a deployment so be careful about manually
         // changing the value of createSuperuser in the deployment config file.
         // See https://github.com/folio-org/folio-helm/blob/master/docker/bootstrap-superuser
@@ -482,15 +487,16 @@ export module deploy {
     }
 
 
-    function deployHelmChart(chartName: string,
+    function deployHelmChart(resourceName: string,
+        chartName: string,
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
         values: object,
         dependsOn?: Resource[]): k8s.helm.v3.Release {
-        return new k8s.helm.v3.Release(chartName, {
+        return new k8s.helm.v3.Release(resourceName, {
             namespace: namespace.id,
 
-            name: chartName,
+            name: resourceName,
 
             chart: chartName,
 

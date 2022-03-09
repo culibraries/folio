@@ -310,27 +310,39 @@ const dbCreateJob = postgresql.deploy.databaseCreation
 const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
-const okapi: FolioModule = util.getModuleByName("okapi", modules);
+const okapiModule: FolioModule = util.getModuleByName("okapi", modules);
 
-// TODO Maybe get this from a configuration entry.
-// TODO This is currently the ARN of the cublcta.com domain. To swap out
-// a different certificate for a different domain, change this value and run
-// pululmi up for the cluster.
-const certArn:string = "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-0b6e-4698-9c31-504c84a979ba";
+// TODO Maybe get cert arns from a configuration entry. They aren't secrets.
+
+// The cublctaCertArn is a wildcard certificate so there's only one ARN.
+const cublCtaCertArn:string =
+    "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-0b6e-4698-9c31-504c84a979ba";
+// folio.colorado.edu
+const productionCertArn:string =
+    "arn:aws:acm:us-west-2:735677975035:certificate/0e57ac8a-4fd5-4dbe-b8ac-d8f486798293";
+// okapi.colorado.edu
+const productionOkapiCertArn:string =
+    "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
-// TODO Add the dbCreateJob back in here as a dep.
-const okapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapi, certArn, folioCluster,
-    folioNamespace, [pgCluster, ...clusterInstances, dbConnectSecret, s3CredentialsDataExportSecret,
-        s3CredentialsSecret, configMap, kafkaInstance, dbCreateJob]);
+const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModule,
+    productionOkapiCertArn, folioCluster, folioNamespace, [pgCluster, ...clusterInstances,
+    dbConnectSecret, s3CredentialsDataExportSecret, s3CredentialsSecret, configMap,
+    kafkaInstance, dbCreateJob]);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
-const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace, okapiRelease);
+// const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
+//     [cublCtaOkapiRelease, productionOkapiRelease]);
 
-// NOTE This deploys with the name "platform-complete".
-// folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
-//     folioCluster, folioNamespace, [modRegistrationJob])
-folio.deploy.stripes("ghcr.io/culibraries/folio_stripes", "2021.r2.5", certArn,
+const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
+    [productionOkapiRelease]);
+
+// These deploy with the name "platform-complete-dev or platform-complete for prod".
+// These tags and containers are the result of a manual build process. See the readme in the
+// containers/folio/stripes directory for how to do that.
+folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", productionCertArn,
+    folioCluster, folioNamespace, [...moduleReleases]);
+folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
     folioCluster, folioNamespace, [...moduleReleases]);
 
 // TODO should we be pushing the deployment descriptors for front end modules at all?
