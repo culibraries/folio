@@ -23,3 +23,13 @@ In the `Requests` app:
 1. Select *Reason for Cancelation*
 1. Selection of "Other" requires that the additional info field be filled
 1. Click **Confirm**
+
+## Creating multiple sections for the same course
+
+In the `Courses` app
+
+1. Click **New** (in the upper right corner)
+1. Enter basic Course info (Course title, department, section, description, etc.)
+1. Add Instructior in the Instructors section (You can "look up" instructor)
+1. **Save** and **Close** the record
+1. Repeat for additional sections changing section and instructor
