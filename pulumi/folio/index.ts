@@ -335,22 +335,22 @@ const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModu
 const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
     [productionOkapiRelease]);
 
-// // These deploy with the name "platform-complete-dev or platform-complete for prod".
-// // These tags and containers are the result of a manual build process. See the readme in the
-// // containers/folio/stripes directory for how to do that.
-// folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", productionCertArn,
-//     folioCluster, folioNamespace, [...moduleReleases]);
-// folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
-//     folioCluster, folioNamespace, [...moduleReleases]);
+// These deploy with the name "platform-complete-dev or platform-complete for prod".
+// These tags and containers are the result of a manual build process. See the readme in the
+// containers/folio/stripes directory for how to do that.
+folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", productionCertArn,
+    folioCluster, folioNamespace, [...moduleReleases]);
+folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
+    folioCluster, folioNamespace, [...moduleReleases]);
 
-// // TODO should we be pushing the deployment descriptors for front end modules at all?
-// // NOTE folio-helm does, whereas TAMU does not.
-// // Should we run these as separate jobs? Because right now if I add another module
-// // I have to delete and recreate the job whereas which then re-registers every module
-// // taking quite a while. This might work better if there was 1 pod per job so each
-// // per job. Alternatively we just move this out of pulumi completely.
-// const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
-//     folioNamespace, folioCluster, modules, [...moduleReleases]);
+// TODO should we be pushing the deployment descriptors for front end modules at all?
+// NOTE folio-helm does, whereas TAMU does not.
+// Should we run these as separate jobs? Because right now if I add another module
+// I have to delete and recreate the job whereas which then re-registers every module
+// taking quite a while. This might work better if there was 1 pod per job so each
+// per job. Alternatively we just move this out of pulumi completely.
+const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
+    folioNamespace, folioCluster, modules, [...moduleReleases]);
 
 // // TODO Determine if the Helm chart takes care of the following:
 // // Create hazelcast service account

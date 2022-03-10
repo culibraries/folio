@@ -127,10 +127,20 @@ $ pulumi config set db-host postgresql --secret
 ```
 
 ### Deploy a stack
+Run `pulumi up` to create or update a stack. This will deploy the modules that are referenced in the deployments directory (a given release of folio). These deployment config files are referenced by name in index.ts.
 
-Run `pulumi up` to create or update a stack.
+### Verifying a new stack after deployment
+After running `pulumi up` without error, you should have a fully baked FOLIO system running in kubernetes on AWS. Module descriptors will have been pushed to okapi. If you're the one creating the stack, you can access it immediately. If someone else creates the stack and you just want to connect via `kubectl` you'll need to connect via IAM (see below for how to do that).
 
-### Connect to AWS and Kubernetes
+1. Grab the namespace: `pulumi stack output folioNamespaceName`. Adding it as an alias will make your life easier: `alias k="kubectl -n <namespace>"`.
+2. Export the kubeconfig so you can get access to the cluster: `pulumi stack output kubeconfig > ~/.kube/<stack name>` and then set it `export KUBECONFIG=~/.kube/<stack name>`.
+3. Do `k get nodes` or `k get pods`. You can also do `k get deployments` and `k get services`. Everything should look good.
+4. Check okapi. Do `k get pods | grep okapi` and then `k logs <okapi pod name> | grep ERROR`. You shouldn't anything other than a few 404s.
+5. To see your installed modules port forward okapi to your local workstation (see below for how to do that), and try `curl http://localhost:9000/_/proxy/modules` if you are forwarding to port 9000.
+
+At this point all you'll need to do is register your modules to your tenant and secure the supertenant. See the scripts in the scripts directory for how to do that.
+
+### Connect to a stack that you didn't create
 
 1. Get the kubeconfig file from pulumi.
 
@@ -190,19 +200,21 @@ Run `pulumi up` to create or update a stack.
 
     The aws cli will still work because it doesn't store credentials.
 
-### Cleaning up
+#### References for IAM security
+* [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
+* [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)
 
-To clean up resources run `pulumi destroy`.
+### Cleaning up
+To clean up resources run `pulumi destroy`. Only do this if you know what you're destroying. This will wipe out an entire stack including a production one if it is selected so be careful!
 
 This will destroy all the resources that are running. There's no need to do this on every run. As mentioned above pulumi will take care of applying patches when the code changes. The only reason to destroy is if you truly want to take down the AWS resources consumed by the stack.
 
-This operation may not always work as expected. When things go wrong do `pulumi destroy --help` to get a sense of your options. Refreshing the stack's state before destroying has been known to help. Also setting the debug flag is never a bad idea. To do both of these things try `pulumi destroy -r -d`.
+This operation may not always work as expected. When things go wrong do `pulumi destroy --help` to get a sense of your options. Refreshing the stack's state (`pulumi refresh`) before destroying has been known to help. Also setting the debug flag is never a bad idea. To do both of these things try `pulumi destroy -r -d`.
 
-## Working with jobs
+## Working with k8s jobs
 We are using kubernetes jobs in a number of places:
 * To run certain database operations
-* To register modules with okapi
-* To create or update the superuser
+* To push module descriptors
 
 These jobs hang around after they are run. We could set `ttlSecondsAfterFinished` and have them disappear after a time. This has a number of downsides. One is that the logs for the job, which are present in the pod that is created as part of the job, also disappear. Diagnosing problems is much easier if the logs hang around.
 
@@ -212,7 +224,7 @@ Once a job has run successfully, as far as pulumi is concerned, it is done and w
 
 The idea of jobs that run every time `pulumi up` runs is a bit foreign to pulumi. As a workaround we may want to script our invocation of pulumi and do `pulumi destroy --target <job to destroy>` to first remove a resource before running `pulumi up`.
 
-## Connecting to the cluster before it is exposed
+## Making http requests to the cluster before it is exposed
 It is highly useful to be able to connect to okapi before it is exposed. Do this by port forwarding your localhost to okapi.
 
 ```shell
@@ -285,13 +297,6 @@ TODO Changing the route 53 or the DNS entry that is mapping to the two LoadBalan
 ```sh
 pulumi stack output folioNamespaceName
 ```
-
-
-## References
-* [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
-* [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)
-
-## Notes
 
 ### Public and private subnets
 
