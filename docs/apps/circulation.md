@@ -20,6 +20,18 @@ In the `Requests` app:
 1. Identify request in list and select by clicking
 1. In right hand panel, click on *Actions* drop down
 1. Click **Cancel Request**
-1. Select *Reason for Cancelation*
+1. Select **Reason for Cancelation**
 1. Selection of "Other" requires that the additional info field be filled
 1. Click **Confirm**
+
+
+## Checking out a Multi-Piece Item
+
+In the `Checkout` App
+
+1. Scan or enter Patron ID or other identifier
+1. Scan or enter item barcode and hit enter
+1. Item is displayed in **Scan Items** and pop-up with multiple pieces will be displayed
+1. Click **Item Details** for additional details (number of items, inserts, etc.)
+1. Verify item includes all pieces
+1. Continue checking out any additional items for patron or click to **End Checkout Session**. All applicable notices will be sent to patron
