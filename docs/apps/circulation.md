@@ -23,3 +23,13 @@ In the `Requests` app:
 1. Select *Reason for Cancelation*
 1. Selection of "Other" requires that the additional info field be filled
 1. Click **Confirm**
+
+## Backdate a return
+
+In the `Check In` app
+
+1. Click on the **pencil** icon located under *process as* or *time returned*
+1. Modify date/time to match desired check in processed time
+1. Scan/enter barcode and click **Enter**
+1. Actual return and processed times can be seen by hovering over the **i** icon after item is checked in
+Circulation log only shows time item was processed.
