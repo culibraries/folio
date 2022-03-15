@@ -23,3 +23,17 @@ In the `Requests` app:
 1. Select *Reason for Cancelation*
 1. Selection of "Other" requires that the additional info field be filled
 1. Click **Confirm**
+
+## Mark item as unavailable
+
+In the `Inventory`app:
+
+1. Enter Identifier (barcode, title, etc.) in the searchbox and hit enter
+1. Search results appear on the right. Click on **Item Record** to open item panel
+1. Click on **Holdings Info** for the specific item
+1. Click on the **Item Barcode** (should be hyperlinked) which opens the item record
+1. Click *Actions* dropdown
+1. Select **Mark as unavailable**
+1. **Confirm**
+
+To make available again item must be checked in at any Service Point.
