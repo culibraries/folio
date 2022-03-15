@@ -35,4 +35,5 @@ In the `Inventory`app:
 1. Click *Actions* dropdown
 1. Select **Mark as unavailable**
 1. **Confirm**
-1. To make available again item must be checked in
+
+To make available again item must be checked in at any Service Point.
