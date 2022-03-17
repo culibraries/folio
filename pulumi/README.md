@@ -1,4 +1,4 @@
-# Pulumi for deploying FOLIO
+# Deploying FOLIO
 
 This is a typescript [pulumi](https://www.pulumi.com/docs) project. Pulumi is both a command line interface and a set of APIs for building cloud resources with code. This project was created using the `pulumi new aws-typescript` command. This project is mostly about using pulumi to build things in kubernetes backed by AWS.
 
@@ -72,7 +72,7 @@ Make sure that before you try to select a stack you have logged into
 pulumi stack rename
 ````
 
-## Deploying a Stack
+### Deploying a Stack
 
 ### Configure your local workstation
 
@@ -211,7 +211,21 @@ This will destroy all the resources that are running. There's no need to do this
 
 This operation may not always work as expected. When things go wrong do `pulumi destroy --help` to get a sense of your options. Refreshing the stack's state (`pulumi refresh`) before destroying has been known to help. Also setting the debug flag is never a bad idea. To do both of these things try `pulumi destroy -r -d`.
 
-## Working with k8s jobs
+## Administration
+
+### Scaling deployments
+Currently scaling workloads isn't part of pulumi and needs to be handled through `kubectl`.
+
+To scale a given deployment (in this case mod-inventory) if you have an alias for `kubectl` and your namespace:
+```sh
+k scale deployment mod-inventory --replicas=3
+```
+### Restarting a troublesome pod without any downtime
+```sh
+k rollout restart deployment/mod-inventory
+```
+
+## Working with jobs
 We are using kubernetes jobs in a number of places:
 * To run certain database operations
 * To push module descriptors

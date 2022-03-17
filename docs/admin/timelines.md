@@ -37,12 +37,13 @@
       Deliver Training :2022-09-01, 12w
 
       section Data Migration
-      Acquisitions Mapping :active, dm1, 2022-02-21, 4w
-      Refine Instance, Holdings, and Item mapping :active, 2022-02-21, 8w
-      Circulation Mapping:dm3, after dm1, 8w
-      Dry Runs :2022-05-01, 8w
-      Law Data Mapping      :d4, 2022-09-01  , 12w
-      Comprehensive Dry Runs      :d5, after d4, 12w
+      Inventory :active, 2022-03-01, 2022-05-31
+      Users : active, 2022-03-01, 2022-06-30
+      Acquisitions :active, 2022-03-01, 2022-08-31
+      Circulation: 2022-06-01, 2022-09-30
+      Dry Runs :2022-11-01, 2022-12-31
+      Law Data Mapping :d4, 2022-09-01 , 2022-12-31
+      Comprehensive Dry Runs :2023-01-01, 2023-04-30
 
       section Operations
       Scratch Environment :active, o1, 2022-03-01, 4w
@@ -77,6 +78,47 @@
       Original Cataloging: 2022-03-15, 2w
       Brief Bibs: 2022-04-01, 2w
       Overlaying Bibs: 2022-04-01, 2w
+
+```
+
+## Data Migration Timeline (detailed)
+
+```{mermaid}
+  gantt
+      dateFormat  YYYY-MM-DD
+      excludes  weekends
+      axisFormat %Y-%m-%d
+
+      section Inventory
+      Mapping :active, 2022-03-01, 2022-05-31
+      Exemplar data loaded :active, 2022-03-01, 2022-03-30
+      100k Sample loaded :done, 2022-03-01, 2022-03-30
+      Approve Inventory Sample (Kiwi) :milestone, 2022-05-31, 0d
+      Full load - Inventory :crit, 2022-05-01, 2022-06-30
+
+      section Users
+      Mapping :active, 2022-03-01, 2022-05-31
+      Sample loaded :2022-04-01, 2022-05-31
+      Approve User Sample :milestone, 2022-05-31, 0d
+      Full load - Users :2022-05-01, 2022-06-30
+
+      section Acquisitions
+      Mapping :active, 2022-03-01, 2022-07-31
+      Load Organizations :2022-04-01, 2022-04-30
+      Load/Config Finance :2022-06-01, 2022-06-30
+      Orders (POs/POLs) Sample Loaded :2022-05-01, 2022-07-31
+      Approve PO Sample :milestone, 2022-07-31, 0d
+      Load all Orders :2022-07-01, 2022-08-31
+      Invoices: 
+
+      section Circulation
+      Mapping :2022-06-01, 2022-08-31
+      Process Open Loans Sample :2022-07-01, 2022-07-31
+      Process Fees/Fines Sample :2022-08-01, 2022-08-31
+      Approve Loans Sample :milestone, 2022-08-31
+      Approve Fees/Fines Sample :milestone, 2022-09-31
+      Process all Loans :2022-09-01, 2022-09-30
+      Process all Fees/Fines :2022-09-01, 2022-09-30
 
 ```
 
