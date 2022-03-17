@@ -68,7 +68,18 @@ export module deploy {
             labels: nodeGroupArgs.labels,
 
             // Bind the instance profile to the NodeGroup.
-            instanceProfile: ip
+            instanceProfile: ip,
+
+            // You can swap this out for a newer AMI, but nodes will be drained and replaced so do this
+            // with care. However doing this has been tested and the change can be applied through pulumi.
+            // If this AMI id isn't specified here, EKS will always apply the latest AMI (if there is one)
+            // which will cause the whole cluster to redeploy.
+            // To see this AMI's details, go to the AWS console and navigate to Images > AMI and search
+            // for it in Public Images.
+            // See https://docs.aws.amazon.com/eks/latest/userguide/update-workers.html. Updating the
+            // AMI and the Kubernetes version should be done together, as their k8s version should be
+            // the same.
+            amiId: "ami-07b6ddb2869aacd51"
         });
     }
 

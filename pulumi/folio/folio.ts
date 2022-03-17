@@ -330,7 +330,10 @@ export module deploy {
                 requests: {
                     memory: module.requestsMemory
                 }
-            }
+            },
+
+            // 20 is what TAMU is using.
+            dbMaxPoolSize: 20
         }
 
         // The folio-helm mod-authtoken helm chart hardcodes the signing key. See:
