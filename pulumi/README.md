@@ -61,11 +61,17 @@ cubl-pulumi/folio/dev/.pulumi
  To create a new stack do `pulumi stack init`. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
 
  #### Switching between stacks
-
-```
+```sh
 pulumi stack select <stack name>
 ```
-Make sure that before you try to select a stack you have logged into
+Make sure that before you try to select a stack you have logged into pulumi. Checking that you're on the right stack:
+```sh
+pulumi stack ls
+```
+Connecting to the stack's cluster. Things that you need to be in place:
+* You have exported the kubeconfig for the stack
+* You have set the `KUBECONFIG` env to point to the stack's kubeconfig
+* You have an alias set that points to the right namespace for the stack's cluster
 
 #### To rename a stack
 ````
@@ -395,9 +401,8 @@ helm delete <name> --namespace <kubernetes namespace>
 
 ### Getting 'too many open files' error when running `pulumi up`
 
-This can manifest in a lot of different errors, that appear to be related to networking or other things, but they alls share a common thread which is a message like `too many open files`. The solution is to increase your file limit from the default on MacOS which is 256.
+This can manifest in a lot of different errors, that appear to be related to networking or other things, but they all share a common thread which is a message like `too many open files`. The solution is to increase your file limit from the default on MacOS which is 256.
 ```sh
 limit -n 2048
 ```
-
 If you get an error when trying to set this, restart your terminal session and you should be ok.

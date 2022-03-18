@@ -300,21 +300,22 @@ const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 // Get a reference to the okapi module.
 const okapiModule: FolioModule = util.getModuleByName("okapi", modules);
 
-// TODO Maybe get cert arns from a configuration entry. They aren't secrets.
-
-// The cublctaCertArn is a wildcard certificate so there's only one ARN.
+// The cublctaCertArn is a wildcard certificate so there's only one ARN. This is *.cublcta.com.
 const cublCtaCertArn:string =
     "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-0b6e-4698-9c31-504c84a979ba";
 // folio.colorado.edu
-const productionCertArn:string =
+const stripesProdCertArn:string =
     "arn:aws:acm:us-west-2:735677975035:certificate/0e57ac8a-4fd5-4dbe-b8ac-d8f486798293";
-// okapi.colorado.edu
-const productionOkapiCertArn:string =
-    "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
+// folio.colorado.edu
+const okapiProdCertArn:string = "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
 
-// // Deploy okapi first, being sure that other dependencies have deployed first.
+// Until we have a better way to cut over between environments, we need to let the stack
+// control which which cert gets bound to the okapi service.
+const okapiCertArn:string = pulumi.getStack() === "scratch" ? cublCtaCertArn : okapiProdCertArn;
+
+// Deploy okapi first, being sure that other dependencies have deployed first.
 const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModule,
-    productionOkapiCertArn, folioCluster, folioNamespace, [pgCluster, ...clusterInstances,
+    okapiCertArn, folioCluster, folioNamespace, [pgCluster, ...clusterInstances,
     dbConnectSecret, s3CredentialsDataExportSecret, s3CredentialsSecret, configMap,
     kafkaInstance, dbCreateJob]);
 
@@ -325,7 +326,7 @@ const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespac
 // These deploy with the name "platform-complete-dev or platform-complete for prod".
 // These tags and containers are the result of a manual build process. See the readme in the
 // containers/folio/stripes directory for how to do that.
-folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", productionCertArn,
+folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", stripesProdCertArn,
     folioCluster, folioNamespace, [...moduleReleases]);
 folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
     folioCluster, folioNamespace, [...moduleReleases]);
