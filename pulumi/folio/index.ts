@@ -127,7 +127,6 @@ const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
 const dbUserPassword = config.requireSecret("db-user-password");
 
-// TODO Add tags to this and other new stuff.
 // TODO Make this dependent on the vpc.
 const dbSubnetGroup = new aws.rds.SubnetGroup("folio-db-subnet", {
     subnetIds: folioVpc.privateSubnetIds
@@ -193,8 +192,19 @@ for (const range = { value: 0 }; range.value < 2; range.value++) {
     }));
 }
 
-export const folioDbHost = pgCluster.endpoint;
+export const customEndpointName = pulumi.getStack();
+const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
+    clusterIdentifier: config.require("db-cluster-identifier"),
+    clusterEndpointIdentifier: customEndpointName,
+    customEndpointType: "ANY",
+    tags: tags,
+}, {
+    deleteBeforeReplace: true
+});
+
+export const folioDbHost = clusterEndpoint.endpoint;
 export const folioDbPort = pgCluster.port;
+export const folioDbClusterIdentifier = pgCluster.id;
 
 const configMapData = {
     DB_PORT: "5432",
@@ -209,7 +219,6 @@ const configMap = folio.deploy.configMap("default-config",
     [folioNamespace]);
 
 var dbConnectSecretData = {
-    //DB_HOST: util.base64Encode(pulumi.interpolate`${dbHost}`),
     DB_HOST: util.base64Encode(folioDbHost),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),

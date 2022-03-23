@@ -46,8 +46,6 @@ export module deploy {
         dbPassword: Output<string>,
         dbHost: Output<string>,
         dbDatabase: string,
-
-        // See https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#depend-on-a-chart-resource
         dependsOn?: Resource[]) {
         return new k8s.batch.v1.Job(name, {
             metadata: {
