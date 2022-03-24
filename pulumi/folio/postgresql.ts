@@ -48,6 +48,7 @@ export module deploy {
         engineVersion: string,
         vpcSecurityGroupIds: Output<string>,
         finalSnapshotIdentifier: string,
+        skipFinalSnapshot: boolean,
 
         instanceClass: string,
         clusterInstanceCount: number): RdsClusterResources {
@@ -66,15 +67,9 @@ export module deploy {
             dbSubnetGroupName: dbSubnetGroup.name,
             port: port,
 
-            // TODO Determine what to do with this. Seems like we should be snapshotting before
-            // deletion and deletion can easily occur if the cluster is removed from the stack.
-            // Setting this property doesn't help.
-            // But will setting it on create help next time we want to do pulumi destroy
-            // and actually destroy the db when destroying?
-            // See https://stackoverflow.com/questions/50930470/terraform-error-rds-cluster-finalsnapshotidentifier-is-required-when-a-final-s
-            // Manually changing the skipFinalSnapshot values in an exported stack.json does
-            // work however.
-            skipFinalSnapshot: true,
+            // If this is false then there needs to be a final snapshot identifier and a final
+            // snapshot will be made before it is deleted.
+            skipFinalSnapshot: skipFinalSnapshot,
             finalSnapshotIdentifier: finalSnapshotIdentifier,
 
             // This is necessary, otherwise it will bind the rds cluster to the default security

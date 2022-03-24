@@ -1,7 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as k8s from "@pulumi/kubernetes";
-import * as input from "@pulumi/kubernetes/types/input";
 
 import * as vpc from "./vpc"
 import * as iam from "./iam";
@@ -14,7 +13,6 @@ import * as util from "./util";
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 import { RdsClusterResources } from "./classes/RdsClusterResources";
-import { rds } from "@pulumi/aws/types/enums";
 
 // import * as pulumiPostgres from "@pulumi/postgresql";
 
@@ -124,14 +122,6 @@ const appLabels = { appClass: appName };
 // These secrets have been set in the stack using the pulumi command line.
 const config = new pulumi.Config();
 
-const dbAdminUser = config.requireSecret("db-admin-user");
-const dbAdminPassword = config.requireSecret("db-admin-password");
-const dbUserName = config.requireSecret("db-user-name");
-const dbUserPassword = config.requireSecret("db-user-password");
-
-const clusterName = pulumi.getStack() === "scratch" ? "folio-pg-scratch" : "folio-pg";
-export const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
-export const pgClusterId = `${clusterName}-cluster`; // Get this from config if it exists and control creation based on that.
 export const folioDbPort = 5432;
 export const dbSubnetGroupName = "folio-db-subnet";
 
@@ -140,34 +130,79 @@ const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
     subnetIds: vpcPrivateSubnetIds
 });
 
+/**
+ * The pulumi configuration key which points to the database cluster this
+ * stack should use. When the stack has this key it means that a decision has been made
+ * to not use the db cluster that the stack could have created when it was stood up
+ * initially. Two conditions are possible:
+ * 1) The key exists in configuration indicating that an external cluster should be used.
+ * 2) The key does not exist, indicating that this stack has and should create and manage
+ * its own db cluster.
+ */
+const dbClusterConfigKey = "db-cluster-identifier";
 
-const rdsClusterResources: RdsClusterResources = postgresql.deploy.newRdsCluster(clusterName,
-    tags,
-    pgClusterId,
-    dbSubnetGroup,
-    [
-        "us-west-2a",
-        "us-west-2b",
-        "us-west-2c"
-    ],
-    folioDbPort,
-    pulumi.interpolate`${dbAdminUser}`,
-    pulumi.interpolate`${dbAdminPassword}`,
-    30,
-    "07:00-09:00",
-    "12.7",
-    folioSecurityGroupId,
-    pgFinalSnapshotId,
-    "db.r6g.large",
-    2);
+/**
+ * Checks our pulumi stack configuration to determine whether the current state of the
+ * stack indicates that a new cluster should be created.
+ * @returns True if a new database cluster should be created.
+ */
+function shouldCreateOwnDbCluster(): boolean {
+    return config.get(dbClusterConfigKey) == undefined;
+}
 
+const dbAdminUser = config.requireSecret("db-admin-user");
+const dbAdminPassword = config.requireSecret("db-admin-password");
+const dbUserName = config.requireSecret("db-user-name");
+const dbUserPassword = config.requireSecret("db-user-password");
+
+var rdsClusterResources = {} as RdsClusterResources;
+if (shouldCreateOwnDbCluster()) {
+    const clusterName = pulumi.getStack() === "scratch" ? "folio-pg-scratch" : "folio-pg";
+    const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
+    const pgClusterId = `${clusterName}-cluster`; // Get this from config if it exists and control creation based on that.
+
+    rdsClusterResources = postgresql.deploy.newRdsCluster(clusterName,
+        tags,
+        pgClusterId,
+        dbSubnetGroup,
+        [
+            "us-west-2a",
+            "us-west-2b",
+            "us-west-2c"
+        ],
+        folioDbPort,
+        pulumi.interpolate`${dbAdminUser}`,
+        pulumi.interpolate`${dbAdminPassword}`,
+        30,
+        "07:00-09:00",
+        "12.7",
+        folioSecurityGroupId,
+        pgFinalSnapshotId,
+        true,
+        "db.r6g.large",
+        2);
+}
+
+// Bind whichever cluster we have to the cluster endpoint that this stack owns.
+// The cluster endpoint is persistent, but the underlying database cluster can be
+// swapped out anytime.
+var dbClusterIdentifier:any;
+if (shouldCreateOwnDbCluster()) {
+    dbClusterIdentifier = rdsClusterResources.cluster.id;
+} else {
+    dbClusterIdentifier = config.require(dbClusterConfigKey);
+}
 export const customEndpointName = pulumi.getStack();
 const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
-    clusterIdentifier: config.require("db-cluster-identifier"), // TODO get this from config if it exists.
+    clusterIdentifier: dbClusterIdentifier,
     clusterEndpointIdentifier: customEndpointName,
     customEndpointType: "ANY",
     tags: tags,
 }, {
+    // The cluster endpoint can't be edited, despite what the AWS docs say.
+    // Instead it must be deleted and recreated. However this doesn't mean that
+    // the dns entry will change. If fact, the dns remains the same after a new
+    // instance is created.
     deleteBeforeReplace: true
 });
 
@@ -243,24 +278,16 @@ const s3CredentialsSecret = folio.deploy.secret("s3-credentials",
     s3CredentialsDataExportSecretData, appLabels, folioCluster,
     folioNamespace, [folioNamespace]);
 
-// NOTE We are currently using pulumi's helm Release rather than helm Chart.
-// See: https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/.
-// Although using Release produces a warning when running pululmi up, Release is much
-// more robust than Chart, especially when it comes to waiting on the deployment
-// and chaining to subsequent operations via dependsOn.
-
 // Deploy Kafka via a Helm Chart into the FOLIO namespace.
 export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNamespace,
     [folioNamespace]);
 
-// export const inClusterPostgres = postgresql.deploy.helm("in-cluster-postgres", folioCluster,
-//     folioNamespace, dbAdminPassword, [folioNamespace, secret]);
-
-// This can run multiple times without causing trouble. It depends on the result of
-// all resources in the previous step being complete.
-// TODO This should only be run if we're creating a new cluster which we should now have a param for.
-const dbCreateJob = postgresql.deploy.databaseCreation
-    ("create-database",
+// Create the database itself if a new db cluster is being stood up.
+// This can run multiple times without causing trouble.
+var dbCreateJob = {} as k8s.batch.v1.Job;
+// Run a job to create the FOLIO database if we're creating a new cluster from scratch.
+if (shouldCreateOwnDbCluster()) {
+    dbCreateJob = postgresql.deploy.databaseCreation("create-database",
         folioNamespace,
         folioCluster,
         pulumi.interpolate`${dbAdminUser}`,
@@ -270,7 +297,7 @@ const dbCreateJob = postgresql.deploy.databaseCreation
         folioDbHost,
         "postgres",
         [folioNamespace, rdsClusterResources.cluster, ...rdsClusterResources.instances]);
-
+}
 // Prepare the list of modules to deploy.
 const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
@@ -291,10 +318,15 @@ const okapiProdCertArn: string = "arn:aws:acm:us-west-2:735677975035:certificate
 const okapiCertArn: string = pulumi.getStack() === "scratch" ? cublCtaCertArn : okapiProdCertArn;
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
+var okapiDependencies: pulumi.Resource[] = [dbConnectSecret, s3CredentialsDataExportSecret,
+    s3CredentialsSecret, configMap, kafkaInstance];
+// Check to see if we're creating a new db cluster. If we are, then add the job
+// to create the database to the okapi dependencies.
+if (shouldCreateOwnDbCluster()) {
+    okapiDependencies.push(dbCreateJob);
+}
 const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModule,
-    okapiCertArn, folioCluster, folioNamespace, [rdsClusterResources.cluster, ...rdsClusterResources.instances,
-    dbConnectSecret, s3CredentialsDataExportSecret, s3CredentialsSecret, configMap,
-    kafkaInstance, dbCreateJob]);
+    okapiCertArn, folioCluster, folioNamespace, okapiDependencies);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
@@ -317,20 +349,20 @@ folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6",
 const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
     folioNamespace, folioCluster, modules, [...moduleReleases]);
 
-// // TODO Determine if the Helm chart takes care of the following:
-// // Create hazelcast service account
-// // Create hazelcast configmap
+// TODO Determine if the Helm chart takes care of the following:
+// Create hazelcast service account
+// Create hazelcast configmap
 
 // const superUserName = config.requireSecret("superuser-name");
 // const superUserPassword = config.requireSecret("superuser-password");
-// // TODO We need a job to register the modules. We have a script for it, but not
-// // yet a job. This can't be run until that has taken place so commenting out for
-// // now.
-// // const modRegistrationJob = folio.deploy.bootstrapSuperuser
-// //     ("mod-reg-and-bootstrap-superuser",
-// //     pulumi.interpolate`${superUserName}`,
-// //     pulumi.interpolate`${superUserPassword}`,
-// //     folioDeployment,
-// //     folioNamespace,
-// //     folioCluster,
-// //     [modDescriptorJob]);
+// TODO We need a job to register the modules. We have a script for it, but not
+// yet a job. This can't be run until that has taken place so commenting out for
+// now.
+// const modRegistrationJob = folio.deploy.bootstrapSuperuser
+//     ("mod-reg-and-bootstrap-superuser",
+//     pulumi.interpolate`${superUserName}`,
+//     pulumi.interpolate`${superUserPassword}`,
+//     folioDeployment,
+//     folioNamespace,
+//     folioCluster,
+//     [modDescriptorJob]);
