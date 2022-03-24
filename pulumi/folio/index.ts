@@ -13,6 +13,8 @@ import * as util from "./util";
 
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
+import { RdsClusterResources } from "./classes/RdsClusterResources";
+import { rds } from "@pulumi/aws/types/enums";
 
 // import * as pulumiPostgres from "@pulumi/postgresql";
 
@@ -29,7 +31,7 @@ const tags = {
 // are some items in our security group that should have this range rather
 // than being completely open.
 // For more information see: https://www.pulumi.com/docs/guides/crosswalk/aws/vpc/#configuring-cidr-blocks-for-a-vpc
-const clusterCidrBlock ="10.0.0.0/16";
+const clusterCidrBlock = "10.0.0.0/16";
 
 // Create our VPC and security group.
 const folioVpc = vpc.deploy.awsVpc("folio-vpc", tags, 3, 1, clusterCidrBlock);
@@ -127,74 +129,41 @@ const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
 const dbUserPassword = config.requireSecret("db-user-password");
 
-// TODO Make this dependent on the vpc.
-const dbSubnetGroup = new aws.rds.SubnetGroup("folio-db-subnet", {
-    subnetIds: folioVpc.privateSubnetIds
-});
-
-// TODO Does this need to be renamed when deleting a cluster?
-// See https://github.com/hashicorp/terraform/issues/5753
 const clusterName = pulumi.getStack() === "scratch" ? "folio-pg-scratch" : "folio-pg";
 export const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
-export const pgClusterId = `${clusterName}-cluster`;
-const pgCluster = new aws.rds.Cluster(clusterName, {
-    tags: tags,
+export const pgClusterId = `${clusterName}-cluster`; // Get this from config if it exists and control creation based on that.
+export const folioDbPort = 5432;
+export const dbSubnetGroupName = "folio-db-subnet";
 
-    // TODO Be careful with this list. It seems to error out if 3 items aren't provided on
-    // subsequent runs doing a replace because of a diff on availabilityZones. The error is:
-    // error creating RDS cluster: DBClusterAlreadyExistsFault: DB Cluster already exists.
-    // But I'm not seeing that it can't create in us-west-2c, because I believe we only have
-    // two azs in the vpc. Making it 2 seems to work again. Ok well it will attempt
-    // to replace when there are only 2 still. Adding 3 makes it not do that, which is
-    // probably wrong since the vpc only has 2.
+const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
+    tags: { "Name": dbSubnetGroupName, ...tags },
+    subnetIds: vpcPrivateSubnetIds
+});
 
-    // I believe destroying and creating the stack with 3 azs in the vpc should fix this.
-    availabilityZones: [
+
+const rdsClusterResources: RdsClusterResources = postgresql.deploy.newRdsCluster(clusterName,
+    tags,
+    pgClusterId,
+    dbSubnetGroup,
+    [
         "us-west-2a",
         "us-west-2b",
         "us-west-2c"
     ],
-    backupRetentionPeriod: 30,
-    clusterIdentifier: pgClusterId,
-    databaseName: "postgres",
-    engine: "aurora-postgresql",
-    engineVersion: "12.7",
-    masterPassword: pulumi.interpolate`${dbAdminPassword}`,
-    masterUsername: pulumi.interpolate`${dbAdminUser}`,
-    preferredBackupWindow: "07:00-09:00",
-    dbSubnetGroupName: dbSubnetGroup.name,
-
-    // TODO Deleting the rds instance completely can be tedious with pulumi destroy.
-    // Setting this property doesn't help.
-    // But will setting it on create help next time we want to do pulumi destroy
-    // and actually destroy the db when destroying?
-    // See https://stackoverflow.com/questions/50930470/terraform-error-rds-cluster-finalsnapshotidentifier-is-required-when-a-final-s
-    // Manually changing the skipFinalSnapshot values in an exported stack.json does
-    // work however.
-    skipFinalSnapshot: true,
-    finalSnapshotIdentifier: pgFinalSnapshotId,
-
-    // This is necessary, otherwise it will bind the rds cluster to the default security
-    // group.
-    vpcSecurityGroupIds: [ folioSecurityGroup.id ],
-});
-
-const clusterInstances: aws.rds.ClusterInstance[] = [];
-for (const range = { value: 0 }; range.value < 2; range.value++) {
-    clusterInstances.push(new aws.rds.ClusterInstance(`${clusterName}-cluster-instance-${range.value}`, {
-        tags: tags,
-        identifier: `${clusterName}-cluster-instance-${range.value}`,
-        clusterIdentifier: pgCluster.id,
-        instanceClass: "db.r6g.large",
-        engine: "aurora-postgresql",
-        engineVersion: "12.7",
-        dbSubnetGroupName: dbSubnetGroup.name
-    }));
-}
+    folioDbPort,
+    pulumi.interpolate`${dbAdminUser}`,
+    pulumi.interpolate`${dbAdminPassword}`,
+    30,
+    "07:00-09:00",
+    "12.7",
+    folioSecurityGroupId,
+    pgFinalSnapshotId,
+    "db.r6g.large",
+    2);
 
 export const customEndpointName = pulumi.getStack();
 const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
-    clusterIdentifier: config.require("db-cluster-identifier"),
+    clusterIdentifier: config.require("db-cluster-identifier"), // TODO get this from config if it exists.
     clusterEndpointIdentifier: customEndpointName,
     customEndpointType: "ANY",
     tags: tags,
@@ -203,11 +172,9 @@ const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
 });
 
 export const folioDbHost = clusterEndpoint.endpoint;
-export const folioDbPort = pgCluster.port;
-export const folioDbClusterIdentifier = pgCluster.id;
 
 const configMapData = {
-    DB_PORT: "5432",
+    DB_PORT: folioDbPort.toString(),
     DB_DATABASE: "folio",
     DB_QUERYTIMEOUT: "60000",
     DB_CHARSET: "UTF-8",
@@ -224,7 +191,7 @@ var dbConnectSecretData = {
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
 
     // It would appear that folio-helm wants this in this secret rather than the configMap.
-    DB_PORT: Buffer.from("5432").toString("base64"),
+    DB_PORT: Buffer.from(folioDbPort.toString()).toString("base64"),
 
     PG_ADMIN_USER: util.base64Encode(pulumi.interpolate`${dbAdminUser}`),
     PG_ADMIN_USER_PASSWORD: util.base64Encode(pulumi.interpolate`${dbAdminPassword}`),
@@ -291,40 +258,41 @@ export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNames
 
 // This can run multiple times without causing trouble. It depends on the result of
 // all resources in the previous step being complete.
+// TODO This should only be run if we're creating a new cluster which we should now have a param for.
 const dbCreateJob = postgresql.deploy.databaseCreation
     ("create-database",
-     folioNamespace,
-     folioCluster,
-     pulumi.interpolate`${dbAdminUser}`,
-     pulumi.interpolate`${dbAdminPassword}`,
-     pulumi.interpolate`${dbUserName}`,
-     pulumi.interpolate`${dbUserPassword}`,
-     folioDbHost,
-     "postgres",
-     [folioNamespace, pgCluster, ...clusterInstances]);
+        folioNamespace,
+        folioCluster,
+        pulumi.interpolate`${dbAdminUser}`,
+        pulumi.interpolate`${dbAdminPassword}`,
+        pulumi.interpolate`${dbUserName}`,
+        pulumi.interpolate`${dbUserPassword}`,
+        folioDbHost,
+        "postgres",
+        [folioNamespace, rdsClusterResources.cluster, ...rdsClusterResources.instances]);
 
-// // Prepare the list of modules to deploy.
+// Prepare the list of modules to deploy.
 const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
 const okapiModule: FolioModule = util.getModuleByName("okapi", modules);
 
 // The cublctaCertArn is a wildcard certificate so there's only one ARN. This is *.cublcta.com.
-const cublCtaCertArn:string =
+const cublCtaCertArn: string =
     "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-0b6e-4698-9c31-504c84a979ba";
 // folio.colorado.edu
-const stripesProdCertArn:string =
+const stripesProdCertArn: string =
     "arn:aws:acm:us-west-2:735677975035:certificate/0e57ac8a-4fd5-4dbe-b8ac-d8f486798293";
 // folio.colorado.edu
-const okapiProdCertArn:string = "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
+const okapiProdCertArn: string = "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
 
 // Until we have a better way to cut over between environments, we need to let the stack
 // control which which cert gets bound to the okapi service.
-const okapiCertArn:string = pulumi.getStack() === "scratch" ? cublCtaCertArn : okapiProdCertArn;
+const okapiCertArn: string = pulumi.getStack() === "scratch" ? cublCtaCertArn : okapiProdCertArn;
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModule,
-    okapiCertArn, folioCluster, folioNamespace, [pgCluster, ...clusterInstances,
+    okapiCertArn, folioCluster, folioNamespace, [rdsClusterResources.cluster, ...rdsClusterResources.instances,
     dbConnectSecret, s3CredentialsDataExportSecret, s3CredentialsSecret, configMap,
     kafkaInstance, dbCreateJob]);
 
