@@ -13,6 +13,7 @@ import * as util from "./util";
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 import { RdsClusterResources } from "./classes/RdsClusterResources";
+import { Resource } from "@pulumi/pulumi";
 
 // import * as pulumiPostgres from "@pulumi/postgresql";
 
@@ -35,11 +36,115 @@ const clusterCidrBlock = "10.0.0.0/16";
 const folioVpc = vpc.deploy.awsVpc("folio-vpc", tags, 3, 1, clusterCidrBlock);
 export const folioVpcId = folioVpc.id;
 
-const folioSecurityGroup = vpc.deploy.awsSecurityGroup("folio-security-group", tags, folioVpc.id, clusterCidrBlock);
+const folioSecurityGroup = vpc.deploy.awsSecurityGroup("folio-security-group",
+    tags, folioVpc.id, clusterCidrBlock);
 
-// Create our own IAM role and profile which we can bind into the cluster's
-// NodeGroup. Cluster will also create a default for us, but we show here how
-// to create and bind our own.
+// Export a few resulting fields from the VPC and security group to make them
+// easier to use and reference.
+export const vpcId = folioVpc.id;
+export const folioSecurityGroupId = folioSecurityGroup.id;
+export const vpcPrivateSubnetIds = folioVpc.privateSubnetIds;
+export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
+
+// Create the database resources that are needed in our VPC. At minimum we need a
+// database subnet group, and a cluster reference.
+const config = new pulumi.Config();
+export const folioDbPort = 5432;
+export const dbSubnetGroupName = "folio-db-subnet";
+const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
+    tags: { "Name": dbSubnetGroupName, ...tags },
+    subnetIds: vpcPrivateSubnetIds
+});
+
+/**
+ * The pulumi configuration key which points to the database cluster this
+ * stack should use. When the stack has this key it means that a decision has been made
+ * to not use the db cluster that the stack created when it was stood up
+ * initially. Two conditions are possible:
+ * 1) The key exists in configuration indicating that an external cluster should be used.
+ * 2) The key does not exist, indicating that this stack has and should create and manage
+ * its own db cluster.
+ */
+const dbClusterConfigKey = "db-cluster-identifier";
+
+/**
+ * Checks our pulumi stack configuration to determine whether the current state of the
+ * stack indicates that a new cluster should be created.
+ * @returns True if a new database cluster should be created.
+ */
+function shouldCreateOwnDbCluster(): boolean {
+    return config.get(dbClusterConfigKey) == undefined;
+}
+
+const dbAdminUser = config.requireSecret("db-admin-user");
+const dbAdminPassword = config.requireSecret("db-admin-password");
+const dbUserName = config.requireSecret("db-user-name");
+const dbUserPassword = config.requireSecret("db-user-password");
+
+// Create the RDS resources, if they are needed. Note that on the first run a stack
+// always needs a RDS cluster to be deployed, otherwise subsequent steps won't work.
+// But once a full stack is deployed, the RDS cluster can be swapped out by adding
+// a special key in the configuration which will perform the swap on subsequent updates.
+let rdsClusterResources = {} as RdsClusterResources;
+if (shouldCreateOwnDbCluster()) {
+    const clusterName = pulumi.getStack() === "scratch" ? "folio-pg-scratch" : "folio-pg";
+    const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
+    const pgClusterId = `${clusterName}-cluster`;
+    rdsClusterResources = postgresql.deploy.newRdsCluster(clusterName,
+        tags,
+        pgClusterId,
+        dbSubnetGroup,
+        [
+            "us-west-2a",
+            "us-west-2b",
+            "us-west-2c"
+        ],
+        folioDbPort,
+        pulumi.interpolate`${dbAdminUser}`,
+        pulumi.interpolate`${dbAdminPassword}`,
+        30,
+        "07:00-09:00",
+        "12.7",
+        folioSecurityGroupId,
+        pgFinalSnapshotId,
+        true,
+        "db.r6g.large",
+        2,
+        [folioVpc, dbSubnetGroup]);
+}
+
+// Bind whichever cluster we have to the cluster endpoint that this stack owns.
+// The cluster endpoint is persistent, but the underlying database cluster can be
+// swapped out anytime via setting the special configuration key.
+let dbClusterIdentifier: pulumi.Output<string>;
+let dbResourceDependencies = new Array<Resource>();
+if (shouldCreateOwnDbCluster()) {
+    dbClusterIdentifier = rdsClusterResources.cluster.id;
+    dbResourceDependencies.concat([rdsClusterResources.cluster, ...rdsClusterResources.instances]);
+} else {
+    // The interpolate call is needed to convert the literal to tye Output type.
+    dbClusterIdentifier = pulumi.interpolate`${config.require(dbClusterConfigKey)}`;
+    dbResourceDependencies.concat([folioVpc, dbSubnetGroup]);
+}
+export const customEndpointName = pulumi.getStack();
+const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
+    clusterIdentifier: dbClusterIdentifier,
+    clusterEndpointIdentifier: customEndpointName,
+    customEndpointType: "ANY",
+    tags: {"Name": customEndpointName, ... tags },
+}, {
+    // This doesn't mean that the dns entry will change. If fact, the dns remains
+    // the same after a new instance is created.
+    deleteBeforeReplace: true,
+    dependsOn: dbResourceDependencies
+});
+
+// Export the custom cluster endpoint to be the db host which is used by the app.
+export const folioDbHost = clusterEndpoint.endpoint;
+
+// Create our own IAM role and profile which we can bind into the EKS cluster's
+// NodeGroup when we create it next. Cluster will also create a default for us, but
+// we show here how to create and bind our own.
 const workerRoleManagedPolicyArns: string[] = [
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
@@ -82,16 +187,10 @@ cluster.deploy.awsCreateEksNodeGroup(folioNodeGroupArgs, folioCluster, folioInst
 cluster.deploy.awsAddOn("folio-kube-proxy-addon", "kube-proxy", tags, folioCluster);
 //cluster.deploy.awsAddOn("folio-coredns-addon", "coredns", tags, folioCluster);
 
-// Export a few resulting fields to make them easy to use.
-export const vpcId = folioVpc.id;
-export const folioSecurityGroupId = folioSecurityGroup.id;
-export const vpcPrivateSubnetIds = folioVpc.privateSubnetIds;
-export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
-
 // Export the cluster's kubeconfig.
 export const kubeconfig = folioCluster.kubeconfig;
 
-// Create a namespace.
+// Create a k8s namespace.
 // You must define the provider that you want to use for creating the namespace.
 export const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider: folioCluster.provider });
 
@@ -102,112 +201,13 @@ export const folioNamespaceName = folioNamespace.metadata.name;
 const releaseFilePath = "./deployments/R2-2021.yaml";
 const tenant = "cubl";
 const okapiUrl = "http://okapi:9130";
-// TODO These two flags may no longer be relevant depending on how we end up registering
-// modules.
-const loadRefData = true;
-const loadSampleData = false;
 const containerRepo = "folioorg";
 const folioDeployment = new FolioDeployment(tenant,
     releaseFilePath,
-    loadRefData,
-    loadSampleData,
     okapiUrl,
     containerRepo);
 
 // Create a configMap for folio for certain non-secret environment variables that will be deployed.
-const appName = "folio";
-const appLabels = { appClass: appName };
-
-// Create a secret for folio to store our environment variables that k8s will inject into each pod.
-// These secrets have been set in the stack using the pulumi command line.
-const config = new pulumi.Config();
-
-export const folioDbPort = 5432;
-export const dbSubnetGroupName = "folio-db-subnet";
-
-const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
-    tags: { "Name": dbSubnetGroupName, ...tags },
-    subnetIds: vpcPrivateSubnetIds
-});
-
-/**
- * The pulumi configuration key which points to the database cluster this
- * stack should use. When the stack has this key it means that a decision has been made
- * to not use the db cluster that the stack could have created when it was stood up
- * initially. Two conditions are possible:
- * 1) The key exists in configuration indicating that an external cluster should be used.
- * 2) The key does not exist, indicating that this stack has and should create and manage
- * its own db cluster.
- */
-const dbClusterConfigKey = "db-cluster-identifier";
-
-/**
- * Checks our pulumi stack configuration to determine whether the current state of the
- * stack indicates that a new cluster should be created.
- * @returns True if a new database cluster should be created.
- */
-function shouldCreateOwnDbCluster(): boolean {
-    return config.get(dbClusterConfigKey) == undefined;
-}
-
-const dbAdminUser = config.requireSecret("db-admin-user");
-const dbAdminPassword = config.requireSecret("db-admin-password");
-const dbUserName = config.requireSecret("db-user-name");
-const dbUserPassword = config.requireSecret("db-user-password");
-
-var rdsClusterResources = {} as RdsClusterResources;
-if (shouldCreateOwnDbCluster()) {
-    const clusterName = pulumi.getStack() === "scratch" ? "folio-pg-scratch" : "folio-pg";
-    const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
-    const pgClusterId = `${clusterName}-cluster`; // Get this from config if it exists and control creation based on that.
-
-    rdsClusterResources = postgresql.deploy.newRdsCluster(clusterName,
-        tags,
-        pgClusterId,
-        dbSubnetGroup,
-        [
-            "us-west-2a",
-            "us-west-2b",
-            "us-west-2c"
-        ],
-        folioDbPort,
-        pulumi.interpolate`${dbAdminUser}`,
-        pulumi.interpolate`${dbAdminPassword}`,
-        30,
-        "07:00-09:00",
-        "12.7",
-        folioSecurityGroupId,
-        pgFinalSnapshotId,
-        true,
-        "db.r6g.large",
-        2);
-}
-
-// Bind whichever cluster we have to the cluster endpoint that this stack owns.
-// The cluster endpoint is persistent, but the underlying database cluster can be
-// swapped out anytime.
-var dbClusterIdentifier:any;
-if (shouldCreateOwnDbCluster()) {
-    dbClusterIdentifier = rdsClusterResources.cluster.id;
-} else {
-    dbClusterIdentifier = config.require(dbClusterConfigKey);
-}
-export const customEndpointName = pulumi.getStack();
-const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
-    clusterIdentifier: dbClusterIdentifier,
-    clusterEndpointIdentifier: customEndpointName,
-    customEndpointType: "ANY",
-    tags: tags,
-}, {
-    // The cluster endpoint can't be edited, despite what the AWS docs say.
-    // Instead it must be deleted and recreated. However this doesn't mean that
-    // the dns entry will change. If fact, the dns remains the same after a new
-    // instance is created.
-    deleteBeforeReplace: true
-});
-
-export const folioDbHost = clusterEndpoint.endpoint;
-
 const configMapData = {
     DB_PORT: folioDbPort.toString(),
     DB_DATABASE: "folio",
@@ -216,10 +216,13 @@ const configMapData = {
     DB_MAXPOOLSIZE: "5",
     // TODO Add KAFKA_HOST, KAFKA_PORT
 };
+const appName = "folio";
+const appLabels = { appClass: appName };
 const configMap = folio.deploy.configMap("default-config",
-    configMapData, appLabels, folioCluster, folioNamespace,
-    [folioNamespace]);
+    configMapData, appLabels, folioCluster, folioNamespace, [folioNamespace]);
 
+// Create a secret for folio to store our environment variables that k8s will inject into each pod.
+// These secrets have been set in the stack using the pulumi command line.
 var dbConnectSecretData = {
     DB_HOST: util.base64Encode(folioDbHost),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
@@ -285,8 +288,8 @@ export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNames
 // Create the database itself if a new db cluster is being stood up.
 // This can run multiple times without causing trouble.
 var dbCreateJob = {} as k8s.batch.v1.Job;
-// Run a job to create the FOLIO database if we're creating a new cluster from scratch.
-if (shouldCreateOwnDbCluster()) {
+// Run a k8s job to create the FOLIO database if we're creating a new cluster from scratch.
+ if (shouldCreateOwnDbCluster()) {
     dbCreateJob = postgresql.deploy.databaseCreation("create-database",
         folioNamespace,
         folioCluster,

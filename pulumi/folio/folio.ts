@@ -1,7 +1,6 @@
 
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
-import { RdsClusterResources } from "./classes/RdsClusterResources";
 
 import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";

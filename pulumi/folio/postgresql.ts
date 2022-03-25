@@ -51,7 +51,8 @@ export module deploy {
         skipFinalSnapshot: boolean,
 
         instanceClass: string,
-        clusterInstanceCount: number): RdsClusterResources {
+        clusterInstanceCount: number,
+        dependsOn?: Resource[]): RdsClusterResources {
 
         const cluster = new aws.rds.Cluster(name, {
             tags: { "Name": name, ...tags },
@@ -75,6 +76,8 @@ export module deploy {
             // This is necessary, otherwise it will bind the rds cluster to the default security
             // group.
             vpcSecurityGroupIds:[ vpcSecurityGroupIds ],
+        }, {
+            dependsOn: dependsOn
         });
 
         const clusterInstances: aws.rds.ClusterInstance[] = [];
@@ -87,6 +90,8 @@ export module deploy {
                 engine: "aurora-postgresql",
                 engineVersion: engineVersion,
                 dbSubnetGroupName: dbSubnetGroup.name
+            }, {
+                dependsOn: cluster
             }));
         }
 
