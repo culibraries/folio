@@ -346,6 +346,25 @@ NAME          READY   STATUS    RESTARTS   AGE   IP             NODE            
 folio-debug   1/1     Running   0          39m   10.0.221.166   ip-10-0-199-189.us-west-2.compute.internal   <none>           <none>
 ```
 
+## Working with the database
+This uses AWS RDS Aurora postgresql as the backend. Aurora gives us a robust way to backup and restore databases. It also makes it painless to switch between compatible backend and frontend systems, either when restoring a backup or standing up a new cluster.
+
+The thing to know about RDS database clusters is that restoring a backup always creates a new cluster. In other words, you can't restore a given cluster _into_ an existing cluster. This is a good thing, however it means we have had to put some thought into how to seamlessly switch between different clusters. This is accomplished by binding database connections not to the cluster endpoints directly, but rather binding connections to a `ClusterEndpoint` resource which provides an unchanging DNS entry that then maps to the underlying database instance, as represented by its cluster identifier.
+
+### Considerations for standing up a new stack
+When standing up a new stack from scratch, a completely new database cluster must be created as part of that stack creation. This is the default behavior. The reason for this is that database clusters must share the VPC and other infrastructure with the main application cluster. Once the new stack has been created however, the database cluster created with the stack can be swapped out with another database cluster. When this is done the stack will detect it, and remove the old cluster, optionally creating a snapshot before deleting. When a different database is swapped out, the stack is aware of it, but no longer maintains its state and it is up to you to manage it through the console.
+
+### Considerations for restoring or switching between database clusters
+You can swap out the underlying database cluster anytime you want so long as it is compatible with the application (it is the same flower release). Situations when you might want to do this:
+* Restoring a backup from a point-in-time snapshot in a production environment
+* Giving a new test cluster a backend that is based on (but completely independent of) a production system snapshot
+
+To perform the swap do the following steps:
+1. Clone or create a snapshot of an existing cluster, taking care to create that new cluster inside the target stack's VPC, subnet group and security group. This can be done easily from the AWS RDS console. Without this, the application code won't be able to access it. These variables are exported in the stack state and can easily be seen by doing for example `stack output folioSecurityGroupId` for the security group.
+2. Once the snapshot or clone is created and available, set the the `db-cluster-identifier` in the stack's pulumi config to the identifier of the new cluster you just created and run `pulumi up`. When this configuration value is present during the update, the stack will delete the cluster if it manages it, optionally creating a snapshot before it does.
+
+Depending on the database you're swapping out, you may also need to reset some items in the stack config for the db's username and password. These will cascade to the db connection secret when you run `pulumi up`. Finally, you may need to restart your pods for the environment to pick up your changes. There is a convenience script called `restart-deployments.sh` for this.
+
 ## Debugging
 
 ### Recovering from stack state de-sync

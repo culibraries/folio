@@ -18,7 +18,7 @@ Steps in more detail:
 1. Review the source and run the `bootstrap-superuser.sh` script per the instructions there.
 1. You should now have a minimally functioning FOLIO system with reference data loaded and be able to log in as the superuser through the .
 1. Run `secure-supertenant.py` to secure the supertenant.
-1. Migrate any data to the new cluster's database.
+1. Should you want to connect your new instance to a different database cluster, first create that cluster either by cloning or restoring an existing cluster's snapshot. Then set the pulumi configuration `db-cluster-identifier` key to be the cluster identifier for the cluster you wish to connect.
 1. Run the any scripts in the `scripts` directory related to email configuration. If the URL for the deployment has changed at minimum you'll need to run `email-update-reset.sh` to change the password reset URL to the new URL.
 
 See the `/scripts` directory for scripts that aid deployment after pulumi pulumi.

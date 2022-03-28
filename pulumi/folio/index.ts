@@ -122,7 +122,7 @@ if (shouldCreateOwnDbCluster()) {
     dbClusterIdentifier = rdsClusterResources.cluster.id;
     dbResourceDependencies.concat([rdsClusterResources.cluster, ...rdsClusterResources.instances]);
 } else {
-    // The interpolate call is needed to convert the literal to tye Output type.
+    // The interpolate call is needed to convert the literal to the Output type.
     dbClusterIdentifier = pulumi.interpolate`${config.require(dbClusterConfigKey)}`;
     dbResourceDependencies.concat([folioVpc, dbSubnetGroup]);
 }
@@ -131,7 +131,7 @@ const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
     clusterIdentifier: dbClusterIdentifier,
     clusterEndpointIdentifier: customEndpointName,
     customEndpointType: "ANY",
-    tags: {"Name": customEndpointName, ... tags },
+    tags: {"Name": customEndpointName, ...tags },
 }, {
     // This doesn't mean that the dns entry will change. If fact, the dns remains
     // the same after a new instance is created.
