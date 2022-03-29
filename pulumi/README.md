@@ -61,11 +61,17 @@ cubl-pulumi/folio/dev/.pulumi
  To create a new stack do `pulumi stack init`. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
 
  #### Switching between stacks
-
-```
+```sh
 pulumi stack select <stack name>
 ```
-Make sure that before you try to select a stack you have logged into
+Make sure that before you try to select a stack you have logged into pulumi. Checking that you're on the right stack:
+```sh
+pulumi stack ls
+```
+Connecting to the stack's cluster. Things that you need to be in place:
+* You have exported the kubeconfig for the stack
+* You have set the `KUBECONFIG` env to point to the stack's kubeconfig
+* You have an alias set that points to the right namespace for the stack's cluster
 
 #### To rename a stack
 ````
@@ -127,10 +133,20 @@ $ pulumi config set db-host postgresql --secret
 ```
 
 ### Deploy a stack
+Run `pulumi up` to create or update a stack. This will deploy the modules that are referenced in the deployments directory (a given release of folio). These deployment config files are referenced by name in index.ts.
 
-Run `pulumi up` to create or update a stack.
+### Verifying a new stack after deployment
+After running `pulumi up` without error, you should have a fully baked FOLIO system running in kubernetes on AWS. Module descriptors will have been pushed to okapi. If you're the one creating the stack, you can access it immediately. If someone else creates the stack and you just want to connect via `kubectl` you'll need to connect via IAM (see below for how to do that).
 
-### Connect to AWS and Kubernetes
+1. Grab the namespace: `pulumi stack output folioNamespaceName`. Adding it as an alias will make your life easier: `alias k="kubectl -n <namespace>"`.
+2. Export the kubeconfig so you can get access to the cluster: `pulumi stack output kubeconfig > ~/.kube/<stack name>` and then set it `export KUBECONFIG=~/.kube/<stack name>`.
+3. Do `k get nodes` or `k get pods`. You can also do `k get deployments` and `k get services`. Everything should look good.
+4. Check okapi. Do `k get pods | grep okapi` and then `k logs <okapi pod name> | grep ERROR`. You shouldn't anything other than a few 404s.
+5. To see your installed modules port forward okapi to your local workstation (see below for how to do that), and try `curl http://localhost:9000/_/proxy/modules` if you are forwarding to port 9000.
+
+At this point all you'll need to do is register your modules to your tenant and secure the supertenant. See the scripts in the scripts directory for how to do that.
+
+### Connect to a stack that you didn't create
 
 1. Get the kubeconfig file from pulumi.
 
@@ -190,13 +206,16 @@ Run `pulumi up` to create or update a stack.
 
     The aws cli will still work because it doesn't store credentials.
 
-### Cleaning up
+#### References for IAM security
+* [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
+* [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)
 
-To clean up resources run `pulumi destroy`.
+### Cleaning up
+To clean up resources run `pulumi destroy`. Only do this if you know what you're destroying. This will wipe out an entire stack including a production one if it is selected so be careful!
 
 This will destroy all the resources that are running. There's no need to do this on every run. As mentioned above pulumi will take care of applying patches when the code changes. The only reason to destroy is if you truly want to take down the AWS resources consumed by the stack.
 
-This operation may not always work as expected. When things go wrong do `pulumi destroy --help` to get a sense of your options. Refreshing the stack's state before destroying has been known to help. Also setting the debug flag is never a bad idea. To do both of these things try `pulumi destroy -r -d`.
+This operation may not always work as expected. When things go wrong do `pulumi destroy --help` to get a sense of your options. Refreshing the stack's state (`pulumi refresh`) before destroying has been known to help. Also setting the debug flag is never a bad idea. To do both of these things try `pulumi destroy -r -d`.
 
 ## Administration
 
@@ -215,8 +234,7 @@ k rollout restart deployment/mod-inventory
 ## Working with jobs
 We are using kubernetes jobs in a number of places:
 * To run certain database operations
-* To register modules with okapi
-* To create or update the superuser
+* To push module descriptors
 
 These jobs hang around after they are run. We could set `ttlSecondsAfterFinished` and have them disappear after a time. This has a number of downsides. One is that the logs for the job, which are present in the pod that is created as part of the job, also disappear. Diagnosing problems is much easier if the logs hang around.
 
@@ -226,7 +244,7 @@ Once a job has run successfully, as far as pulumi is concerned, it is done and w
 
 The idea of jobs that run every time `pulumi up` runs is a bit foreign to pulumi. As a workaround we may want to script our invocation of pulumi and do `pulumi destroy --target <job to destroy>` to first remove a resource before running `pulumi up`.
 
-## Connecting to the cluster before it is exposed
+## Making http requests to the cluster before it is exposed
 It is highly useful to be able to connect to okapi before it is exposed. Do this by port forwarding your localhost to okapi.
 
 ```shell
@@ -294,11 +312,11 @@ DNS for a colorado.edu domain isn't handled through our account's route 53. We d
 ### Swapping out deployments
 TODO Changing the route 53 or the DNS entry that is mapping to the two LoadBalancer endpoints should be all that is necessary. However, for this type of swap to work, we would need for the stripes okapi url to detect this change update automatically.
 
-## References
-* [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
-* [Provide access to other IAM users and roles after cluster creation](https://aws.amazon.com/premiumsupport/knowledge-center/amazon-eks-cluster-access/)
+### Getting the namespace of a current deployment
 
-## Notes
+```sh
+pulumi stack output folioNamespaceName
+```
 
 ### Public and private subnets
 
@@ -327,6 +345,25 @@ $ kubectl get pods -o wide
 NAME          READY   STATUS    RESTARTS   AGE   IP             NODE                                         NOMINATED NODE   READINESS GATES
 folio-debug   1/1     Running   0          39m   10.0.221.166   ip-10-0-199-189.us-west-2.compute.internal   <none>           <none>
 ```
+
+## Working with the database
+This uses AWS RDS Aurora postgresql as the backend. Aurora gives us a robust way to backup and restore databases. It also makes it painless to switch between compatible backend and frontend systems, either when restoring a backup or standing up a new cluster.
+
+The thing to know about RDS database clusters is that restoring a backup always creates a new cluster. In other words, you can't restore a given cluster _into_ an existing cluster. This is a good thing, however it means we have had to put some thought into how to seamlessly switch between different clusters. This is accomplished by binding database connections not to the cluster endpoints directly, but rather binding connections to a `ClusterEndpoint` resource which provides an unchanging DNS entry that then maps to the underlying database instance, as represented by its cluster identifier.
+
+### Considerations for standing up a new stack
+When standing up a new stack from scratch, a completely new database cluster must be created as part of that stack creation. This is the default behavior. The reason for this is that database clusters must share the VPC and other infrastructure with the main application cluster. Once the new stack has been created however, the database cluster created with the stack can be swapped out with another database cluster. When this is done the stack will detect it, and remove the old cluster, optionally creating a snapshot before deleting. When a different database is swapped out, the stack is aware of it, but no longer maintains its state and it is up to you to manage it through the console.
+
+### Considerations for restoring or switching between database clusters
+You can swap out the underlying database cluster anytime you want so long as it is compatible with the application (it is the same flower release). Situations when you might want to do this:
+* Restoring a backup from a point-in-time snapshot in a production environment
+* Giving a new test cluster a backend that is based on (but completely independent of) a production system snapshot
+
+To perform the swap do the following steps:
+1. Clone or create a snapshot of an existing cluster, taking care to create that new cluster inside the target stack's VPC, subnet group and security group. This can be done easily from the AWS RDS console. Without this, the application code won't be able to access it. These variables are exported in the stack state and can easily be seen by doing for example `stack output folioSecurityGroupId` for the security group.
+2. Once the snapshot or clone is created and available, set the the `db-cluster-identifier` in the stack's pulumi config to the identifier of the new cluster you just created and run `pulumi up`. When this configuration value is present during the update, the stack will delete the cluster if it manages it, optionally creating a snapshot before it does.
+
+Depending on the database you're swapping out, you may also need to reset some items in the stack config for the db's username and password. These will cascade to the db connection secret when you run `pulumi up`. Finally, you may need to restart your pods for the environment to pick up your changes. There is a convenience script called `restart-deployments.sh` for this.
 
 ## Debugging
 
@@ -380,3 +417,11 @@ Often when first deploying something via helm via pulumi, the deployment may fai
 ```shell
 helm delete <name> --namespace <kubernetes namespace>
 ```
+
+### Getting 'too many open files' error when running `pulumi up`
+
+This can manifest in a lot of different errors, that appear to be related to networking or other things, but they all share a common thread which is a message like `too many open files`. The solution is to increase your file limit from the default on MacOS which is 256.
+```sh
+limit -n 2048
+```
+If you get an error when trying to set this, restart your terminal session and you should be ok.
