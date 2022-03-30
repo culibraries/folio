@@ -14,11 +14,11 @@ Steps in more detail:
 1. Still on your local machine, run the `create-tenant.sh` script. This will create one tenant based on the name in the script.
 1. Port forward the okapi port in the cluster a port on localhost. Run the `register-modules.sh` script using the port on localhost for the okapi url. This will register the modules in the deployment to the tenant. You should now be able to see all of the modules that you have registered to the tenant by visiting `http://localhost:9000/_/proxy/tenants/cubl/modules`.
 1. Create an entry in Route 53 to point to the okapi service's DNS address. Get the service dns by doing `get services` in the k8s cluster. This will allow for the next step (bootstrapping superuser) to work.
-1. Review the source and run the `bootstrap-superuser.sh` script per the instructions there. The superuser's name and password are available by doing `pulumi config --show-secrets`.
+1. Review the source and run the `bootstrap-superuser.sh` script per the instructions there. The superuser's name and password are available by doing `pulumi config --show-secrets`. Set these in your local env to use the script.
 1. Create an entry in Route 53 to point to the stripes service's DNS entry. If you visit this new URL you should see the FOLIO frontend app (stripes). Try logging in with the superuser.
-1. You should now have a minimally functioning FOLIO system with reference data loaded .
+1. You should now have a minimally functioning FOLIO system with reference data loaded and/or sample data if you chose in `register-modules.sh` to load the sample data.
 1. Run `secure-supertenant.py` to secure the supertenant.
-1. Should you want to connect your new instance to a different database cluster, first create that cluster either by cloning or restoring an existing cluster's snapshot. Then set the pulumi configuration `db-cluster-identifier` key to be the cluster identifier for the cluster you wish to connect.
+1. Should you want to connect your new instance to a different database cluster, first create that cluster either by cloning or restoring an existing cluster's RDS snapshot. Then set the pulumi configuration `db-cluster-identifier` key to be the cluster identifier for the cluster you wish to connect.
 1. Review and run the scripts in the `scripts` directory related to email configuration. If the URL for the deployment has changed at minimum you'll need to run `email-update-reset.sh` to change the password reset URL to the new URL.
 
 Before running `pulumi up` at minimum review [index.ts](./pulumi/folio/index.ts) to see what's involved with the deployment code. See the main [README](./pulumi/README.md) for details of many of these steps.
