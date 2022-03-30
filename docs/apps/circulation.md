@@ -37,3 +37,14 @@ In the `Inventory`app:
 1. **Confirm**
 
 To make available again item must be checked in at any Service Point.
+
+## Mark item as missing
+
+In the `Inventory` app
+
+1. Enter item identifier (barcode, title, etc.) in search box
+1. Click on **specific item** to open in new pane in FOLIO
+1. In the new pane, open relevant holding and click on item to open new window
+1. In *Actions* dropdown select "mark as missing"
+
+Date can be recorded by adding an item note using *Edit* function in the **Action** dropdown menu
