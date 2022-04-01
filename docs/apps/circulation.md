@@ -49,6 +49,18 @@ In the `Inventory` app
 
 Date can be recorded by adding an item note using *Edit* function in the **Action** dropdown menu
 
+## Marking item as missing after canceling hold
+
+See steps for cancelling hold request
+
+In the `Inventory` app
+
+1. Enter item identifier (barcode, title, etc.) in search box
+1. Click on **specific item** to open in new pane in FOLIO
+1. In the new pane, open relevant holding and click on item to open new window
+1. In *Actions* dropdown select "mark as missing"
+
+
 ## Renew all of a users open loans
 
 In the `Users` app
