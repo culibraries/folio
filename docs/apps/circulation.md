@@ -49,18 +49,6 @@ In the `Inventory` app
 
 Date can be recorded by adding an item note using *Edit* function in the **Action** dropdown menu
 
-## Renew all of a users open loans
-
-In the `Users` app
-
-1. Enter identifier (patron, name, barcode, etc.) in search box
-1. Clink on **Patron Account** to open pane with user info
-1. Expand **Loans** menu
-1. Click on **open loans** (opens a new window)
-1. Click box next to *item title* to select all items
-If only certain items need to be renewed deselect those items
-1. Click **Renew**
-
 ## Cancelling hold due to item not being on shelf
 
 In the `Users` app
