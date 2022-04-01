@@ -49,6 +49,20 @@ In the `Inventory` app
 
 Date can be recorded by adding an item note using *Edit* function in the **Action** dropdown menu
 
+## Cancelling hold due to item not being on shelf
+
+In the `Users` app
+
+1. Enter identifier (name, barcode, etc. in search box)
+1. Click **Patron Account** to open new pane
+1. Expand *Requests* menu in patron account
+1. Click *Open Requests* to open new window
+1. Locate and click on request to be cancelled
+1. Open **Actions** drop down and select *Cancel Request*
+1. Select *Item not Available* as cancellation reason
+
+This does not mark item as unavialable in system. This needs to be marked in item record
+
 ## Marking item as missing after canceling hold
 
 See steps for cancelling hold request
