@@ -51,7 +51,6 @@ export module deploy {
         skipFinalSnapshot: boolean,
 
         instanceClass: string,
-        clusterInstanceCount: number,
         dependsOn?: Resource[]): RdsClusterResources {
 
         const cluster = new aws.rds.Cluster(name, {
@@ -80,20 +79,26 @@ export module deploy {
             dependsOn: dependsOn
         });
 
+        // NOTE: Very important! Currently (Iris) FOLIO is known to behave properly only when there is one
+        // RDS instance that does both reading and writing. If you have more than one instance, RDS
+        // will make the first instance a read-only instance. The second instance will be both a reader
+        // and a writer (appearing as a "Writer") in the AWS RDS console. When there is both a reader
+        // and a writer, either FOLIO or RDS (it is currently unknown -- see issue #230 for background)
+        // doesn't know which endpoint to call depending on the type of operation. So what will happen
+        // is a write will hit the reader and cause an error, not allowing the write to succeed since
+        // it is read only.
         const clusterInstances: aws.rds.ClusterInstance[] = [];
-        for (const range = { value: 0 }; range.value < clusterInstanceCount; range.value++) {
-            clusterInstances.push(new aws.rds.ClusterInstance(`${name}-cluster-instance-${range.value}`, {
-                tags: { "Name": name, ...tags },
-                identifier: `${name}-cluster-instance-${range.value}`,
-                clusterIdentifier: clusterIdentifier,
-                instanceClass: instanceClass,
-                engine: "aurora-postgresql",
-                engineVersion: engineVersion,
-                dbSubnetGroupName: dbSubnetGroup.name
-            }, {
-                dependsOn: cluster
-            }));
-        }
+        clusterInstances.push(new aws.rds.ClusterInstance(`${name}-cluster-instance-1`, {
+            tags: { "Name": name, ...tags },
+            identifier: `${name}-cluster-instance-1`,
+            clusterIdentifier: clusterIdentifier,
+            instanceClass: instanceClass,
+            engine: "aurora-postgresql",
+            engineVersion: engineVersion,
+            dbSubnetGroupName: dbSubnetGroup.name
+        }, {
+            dependsOn: cluster
+        }));
 
         return new RdsClusterResources(cluster, clusterInstances);
     }

@@ -109,7 +109,6 @@ if (shouldCreateOwnDbCluster()) {
         pgFinalSnapshotId,
         true,
         "db.r6g.large",
-        2,
         [folioVpc, dbSubnetGroup]);
 }
 
