@@ -9,10 +9,12 @@ import * as kafka from "./kafka";
 import * as postgresql from "./postgresql";
 import * as folio from "./folio";
 import * as util from "./util";
+import * as prometheus from "./prometheus";
 
 import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 import { RdsClusterResources } from "./classes/RdsClusterResources";
+import { PrometheusResources } from "./classes/PrometheusResources";
 import { Resource } from "@pulumi/pulumi";
 
 // import * as pulumiPostgres from "@pulumi/postgresql";
@@ -368,3 +370,8 @@ const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descri
 //     folioNamespace,
 //     folioCluster,
 //     [modDescriptorJob]);
+
+// Deploy prometheus into cluster in its own namespace.
+const pResource:PrometheusResources = prometheus.deploy.namespaceAndHelmChart("prometheus",
+    folioCluster, [ folioCluster ]);
+export const prometheusNamespaceName = pResource.namespace;
