@@ -86,3 +86,14 @@ In the `Users` app
 1. Click box next to *item title* to select all items
 If only certain items need to be renewed deselect those items
 1. Click **Renew**
+
+## Returning / Check-in Multi-piece Item
+
+In the `Check in` app
+1. Scan/Enter barcode
+1. Item is moved to **Scanned Items** table
+1. Pop up *Multiple Pieces* warning
+1. Click **Item Details** to view addtional details
+1. Verify all pieces are included
+1. Route/Place item for shelving
+Continue with other returns
