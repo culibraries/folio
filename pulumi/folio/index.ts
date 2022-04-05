@@ -374,4 +374,4 @@ const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descri
 // Deploy prometheus into cluster in its own namespace.
 const pResource:PrometheusResources = prometheus.deploy.namespaceAndHelmChart("prometheus",
     folioCluster, [ folioCluster ]);
-export const prometheusNamespaceName = pResource.namespace;
+export const prometheusNamespaceName = pResource.namespace.metadata.name;

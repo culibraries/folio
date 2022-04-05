@@ -22,7 +22,10 @@ export module deploy {
                 chart: "prometheus",
                 version: "15.7.1",
                 name: name,
-                repositoryOpts: { repo: "prometheus-community" },
+                repositoryOpts: { repo: "https://prometheus-community.github.io/helm-charts" },
+                // To customize
+                // values: {
+                // },
             }, {
             provider: cluster.provider,
             dependsOn: namespace
