@@ -86,3 +86,18 @@ In the `Users` app
 1. Click box next to *item title* to select all items
 If only certain items need to be renewed deselect those items
 1. Click **Renew**
+
+## Disallowing lending of specific items with missing piece(s)
+
+Missing items should be noted in **Item Notes**
+
+In the `Inventory` app
+
+1. Enter identifier (Barcode, title, etc.) in search box
+1. Click on **Item** to open new pane
+1. Click on **Holdings** and select item (opens new window)
+1. In the **Actions** dropdown menu select *edit*
+1. In **Item Notes** click *item notes* identify missing items
+1. Click **Save and CLose**
+1. In **Actions** dropdown click *mark as unavailable*
+
