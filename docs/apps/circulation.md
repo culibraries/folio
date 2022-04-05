@@ -49,6 +49,47 @@ In the `Inventory` app
 
 Date can be recorded by adding an item note using *Edit* function in the **Action** dropdown menu
 
+## Cancelling hold due to item not being on shelf
+
+In the `Users` app
+
+1. Enter identifier (name, barcode, etc. in search box)
+1. Click **Patron Account** to open new pane
+1. Expand *Requests* menu in patron account
+1. Click *Open Requests* to open new window
+1. Locate and click on request to be cancelled
+1. Open **Actions** drop down and select *Cancel Request*
+1. Select *Item not Available* as cancellation reason
+
+This does not mark item as unavialable in system. This needs to be marked in item record
+
+## Marking item as missing after canceling hold
+
+See steps for cancelling hold request
+
+In the `Inventory` app
+
+1. Enter item identifier (barcode, title, etc.) in search box
+1. Click on **specific item** to open in new pane in FOLIO
+1. In the new pane, open relevant holding and click on item to open new window
+1. In *Actions* dropdown select "mark as missing"
+
+
+
+## Disallowing lending of specific items with missing piece(s)
+
+Missing items should be noted in **Item Notes**
+
+In the `Inventory` app
+
+1. Enter identifier (Barcode, title, etc.) in search box
+1. Click on **Item** to open new pane
+1. Click on **Holdings** and select item (opens new window)
+1. In the **Actions** dropdown menu select *edit*
+1. In **Item Notes** click *item notes* identify missing items
+1. Click **Save and CLose**
+1. In **Actions** dropdown click *mark as unavailable*
+
 ## Renew all of a users open loans
 
 In the `Users` app
@@ -58,5 +99,5 @@ In the `Users` app
 1. Expand **Loans** menu
 1. Click on **open loans** (opens a new window)
 1. Click box next to *item title* to select all items
-If only certain items need to be renewed deselect those items
+1. If only certain items need to be renewed deselect those items
 1. Click **Renew**
