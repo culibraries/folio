@@ -16,4 +16,4 @@ config:
   folio:superuser-name:
     secure: v1:HrzjbPVTBhV6QvOy:ZMIqcIZAVAO0hd3Q1tBv1kBtu/h4L4ICLJ4=
   folio:superuser-password:
-    secure: v1:qx/xoBErsTMhCxYk:kaLCmhpXa8sJdD4z4cWfftKyXRr8bvDKb+b+4gLvMRyXSQdQR2lEDjtH98gAQvc=
+    secure: v1:6RsFh9tFbr5Ymo4X:OhxdfTFo0MUWhk5NeFZspbCcFbBidVUlNN/m7BawrFGcorgVFAlOTn5S98AQge0=
