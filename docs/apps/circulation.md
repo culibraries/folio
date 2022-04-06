@@ -106,7 +106,6 @@ In the `Inventory` app
 1. In the new pane, open relevant holding and click on item to open new window
 1. In *Actions* dropdown select "mark as missing"
 
-
 ## Renew all of a users open loans
 
 In the `Users` app
@@ -118,6 +117,17 @@ In the `Users` app
 1. Click box next to *item title* to select all items
 If only certain items need to be renewed deselect those items
 1. Click **Renew**
+
+## Returning / Check-in Multi-piece Item
+
+In the `Check in` app
+1. Scan/Enter barcode
+1. Item is moved to **Scanned Items** table
+1. Pop up *Multiple Pieces* warning
+1. Click **Item Details** to view addtional details
+1. Verify all pieces are included
+1. Route/Place item for shelving
+Continue with other returns
 
 ## Disallowing lending of specific items with missing piece(s)
 
@@ -132,4 +142,3 @@ In the `Inventory` app
 1. In **Item Notes** click *item notes* identify missing items
 1. Click **Save and CLose**
 1. In **Actions** dropdown click *mark as unavailable*
-
