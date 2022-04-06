@@ -330,7 +330,10 @@ export module deploy {
                 requests: {
                     memory: module.requestsMemory
                 }
-            }
+            },
+
+            // 20 is what TAMU is using.
+            dbMaxPoolSize: 20
         }
 
         // The folio-helm mod-authtoken helm chart hardcodes the signing key. See:
@@ -512,12 +515,12 @@ export module deploy {
             // complete.
             skipAwait: false,
 
-            // 2 minutes. The default is 5 minutes. After this time the helm release will
+            // 5 minutes. The default is 5 minutes. After this time the helm release will
             // return as complete, so we have to be careful here to make sure we're waiting
             // long enough. This timeout is a backstop if something has gone wrong. Otherwise
             // pulumi knows how to wait for the release to be complete. See note on skipAwait
             // above.
-            timeout: 120
+            timeout: 300
 
             // We don't specify the chart version. The latest chart version will be deployed.
             // https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/chart/#version_nodejs

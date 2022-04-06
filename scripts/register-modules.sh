@@ -21,5 +21,5 @@ H_JSON="-HContent-type:application/json"
 # sample as false and load ref true.
 $CURL $H_JSON --progress-bar \
   -X POST \
-  -d@../deployments/$DEPLOYMENT.json \
+  -d@../pulumi/folio/deployments/$DEPLOYMENT.json \
   $OKAPI_URL/_/proxy/tenants/$TENANT_ID/install?deploy=false\&preRelease=false\&ignoreErrors=$IGNORE_ERRORS\&tenantParameters=loadSample%3D$SAMPLE_DATA%2CloadReference%3D$REF_DATA
