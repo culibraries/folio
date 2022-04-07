@@ -7,6 +7,7 @@ import * as iam from "./iam";
 import * as cluster from "./cluster";
 import * as kafka from "./kafka";
 import * as postgresql from "./postgresql";
+import * as observability from "./observability";
 import * as folio from "./folio";
 import * as util from "./util";
 
@@ -371,3 +372,5 @@ const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descri
 //     folioNamespace,
 //     folioCluster,
 //     [modDescriptorJob]);
+
+observability.deploy.helm("observability", folioCluster, config.get("aws:region"), [ folioCluster ]);
