@@ -109,7 +109,6 @@ if (shouldCreateOwnDbCluster()) {
         pgFinalSnapshotId,
         true,
         "db.r6g.large",
-        2,
         [folioVpc, dbSubnetGroup]);
 }
 
@@ -148,10 +147,11 @@ export const folioDbHost = clusterEndpoint.endpoint;
 const workerRoleManagedPolicyArns: string[] = [
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
 ];
 const folioWorkerRoleName = "folio-worker-role";
-const folioWorkerRole = iam.deploy.awsRoleWithManagedPolicyAttachments
+const folioWorkerRole:aws.iam.Role = iam.deploy.awsRoleWithManagedPolicyAttachments
     (folioWorkerRoleName, tags, workerRoleManagedPolicyArns, "ec2.amazonaws.com");
 const folioInstanceProfile =
     iam.deploy.awsBindRoleToInstanceProfile("folio-worker-role-instance-profile", folioWorkerRole);
@@ -165,6 +165,8 @@ const folioClusterAdminRole = iam.deploy.awsRBACRole(folioClusterAdminRoleName, 
 const folioClusterName = "folio-cluster";
 const folioCluster = cluster.deploy.awsEksCluster
     (folioClusterName, tags, folioVpc, folioSecurityGroup, folioWorkerRole, folioClusterAdminRole);
+
+export const eksClusterName = folioCluster.eksCluster.name;
 
 // Create the node group with a bit more control than we would be given with the
 // defaults. Using this approach we could create multiple node groups if we wanted to

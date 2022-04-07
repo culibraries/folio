@@ -20,9 +20,41 @@ In the `Requests` app:
 1. Identify request in list and select by clicking
 1. In right hand panel, click on *Actions* drop down
 1. Click **Cancel Request**
-1. Select *Reason for Cancelation*
+1. Select **Reason for Cancelation**
 1. Selection of "Other" requires that the additional info field be filled
 1. Click **Confirm**
+
+## Checking out a Multi-Piece Item
+
+In the `Checkout` App
+
+1. Scan or enter Patron ID or other identifier
+1. Scan or enter item barcode and hit enter
+1. Item is displayed in **Scan Items** and pop-up with multiple pieces will be displayed
+1. Click **Item Details** for additional details (number of items, inserts, etc.)
+1. Verify item includes all pieces
+1. Continue checking out any additional items for patron or click to **End Checkout Session**. All applicable notices will be sent to patron
+
+## Backdate a return
+
+In the `Check In` app
+
+1. Click on the **pencil** icon located under *process as* or *time returned*
+1. Modify date/time to match desired check in processed time
+1. Scan/enter barcode and click **Enter**
+1. Actual return and processed times can be seen by hovering over the **i** icon after item is checked in
+
+Circulation log only shows time item was processed.
+
+## Creating multiple sections for the same course
+
+In the `Courses` app
+
+1. Click **New** (in the upper right corner)
+1. Enter basic Course info (Course title, department, section, description, etc.)
+1. Add Instructior in the Instructors section (You can "look up" instructor)
+1. **Save** and **Close** the record
+1. Repeat for additional sections changing section and instructor
 
 ## Mark item as unavailable
 
@@ -74,22 +106,6 @@ In the `Inventory` app
 1. In the new pane, open relevant holding and click on item to open new window
 1. In *Actions* dropdown select "mark as missing"
 
-
-
-## Disallowing lending of specific items with missing piece(s)
-
-Missing items should be noted in **Item Notes**
-
-In the `Inventory` app
-
-1. Enter identifier (Barcode, title, etc.) in search box
-1. Click on **Item** to open new pane
-1. Click on **Holdings** and select item (opens new window)
-1. In the **Actions** dropdown menu select *edit*
-1. In **Item Notes** click *item notes* identify missing items
-1. Click **Save and CLose**
-1. In **Actions** dropdown click *mark as unavailable*
-
 ## Renew all of a users open loans
 
 In the `Users` app
@@ -99,5 +115,5 @@ In the `Users` app
 1. Expand **Loans** menu
 1. Click on **open loans** (opens a new window)
 1. Click box next to *item title* to select all items
-1. If only certain items need to be renewed deselect those items
-1. Click **Renew**
+
+

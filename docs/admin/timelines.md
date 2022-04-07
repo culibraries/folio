@@ -30,9 +30,9 @@
       INN-Reach GA :milestone, 2023-02-23, 0d
 
       section Project Management
-      Refactor Timeline     :active, 2022-02-21, 1w
+      Refactor Timeline     :done, 2022-02-21, 1w
       Review Requirements   :active, 2022-02-21, 38d
-      Documentation :2022-04-01, 12w
+      Documentation :active, 2022-04-01, 12w
       Create Training :2022-05-01, 12w
       Deliver Training :2022-09-01, 12w
 
@@ -46,8 +46,8 @@
       Comprehensive Dry Runs :2023-01-01, 2023-04-30
 
       section Operations
-      Scratch Environment :active, o1, 2022-03-01, 4w
-      Deploy Kiwi :crit, o2, after o1,  4w
+      Scratch Environment :done, o1, 2022-03-01, 4w
+      Deploy Kiwi :active, crit, o2, after o1,  4w
       Infrastructure improvements :o3, after o2, 4w
       Deploy LDP :crit, o4, after o3, 4w
       Deploy Lotus :o5, 2022-08-01, 4w
@@ -74,8 +74,8 @@
       Complete and Document Profiles :2022-12-01, 6w
 
       section Metadata - Single Record
-      Copy Cataloging: 2022-03-15, 2w
-      Original Cataloging: 2022-03-15, 2w
+      Copy Cataloging :active, 2022-03-15, 2w
+      Original Cataloging :active, 2022-03-15, 2w
       Brief Bibs: 2022-04-01, 2w
       Overlaying Bibs: 2022-04-01, 2w
 
@@ -98,13 +98,13 @@
 
       section Users
       Mapping :active, 2022-03-01, 2022-05-31
-      Sample loaded :2022-04-01, 2022-05-31
+      Sample loaded :active, 2022-04-01, 2022-05-31
       Approve User Sample :milestone, 2022-05-31, 0d
       Full load - Users :2022-05-01, 2022-06-30
 
       section Acquisitions
       Mapping :active, 2022-03-01, 2022-07-31
-      Load Organizations :2022-04-01, 2022-04-30
+      Load Organizations :active, 2022-04-01, 2022-04-30
       Load/Config Finance :2022-06-01, 2022-06-30
       Orders (POs/POLs) Sample Loaded :2022-05-01, 2022-07-31
       Approve PO Sample :milestone, 2022-07-31, 0d
