@@ -13,7 +13,7 @@ export module deploy {
             {
                 name: name,
                 chart: "adot-exporter-for-eks-on-ec2",
-                version: "0.3.0",
+                version: "0.3.1",
                 repositoryOpts: { repo: "https://aws-observability.github.io/aws-otel-helm-charts" },
                 values: {
                     clusterName: cluster.eksCluster.name,
@@ -22,8 +22,8 @@ export module deploy {
                         daemonSet: {
                             service: {
                                 metrics: {
-                                    receivers: ["awscontainerinsights"],
-                                    exporters: ["awsemfexporter"]
+                                    receivers: ["awscontainerinsightreceiver"],
+                                    exporters: ["awsemf"]
                                 }
                             }
                         }
