@@ -149,9 +149,12 @@ const workerRoleManagedPolicyArns: string[] = [
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
     "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-    "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
     "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 ];
+// TODO The CloudWatchAgentServerPolicy isn't being added through code. You can see this in
+// the IAM console. It's not there. The other ones are though.
+// TODO Should we attach this too? arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
 const folioWorkerRoleName = "folio-worker-role";
 const folioWorkerRole:aws.iam.Role = iam.deploy.awsRoleWithManagedPolicyAttachments
     (folioWorkerRoleName, tags, workerRoleManagedPolicyArns, "ec2.amazonaws.com");
@@ -374,4 +377,4 @@ const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descri
 //     folioCluster,
 //     [modDescriptorJob]);
 
-observability.deploy.helm("observability", folioCluster, "us-west-2", [ folioCluster ]);
+//observability.deploy.helm("observability", folioCluster, "us-west-2", [ folioCluster ]);
