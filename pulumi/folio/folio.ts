@@ -10,7 +10,6 @@ import * as eks from "@pulumi/eks";
 import { Resource } from "@pulumi/pulumi";
 
 import * as fs from 'fs';
-import * as YAML from 'yaml';
 
 export module prepare {
     /**
@@ -24,15 +23,17 @@ export module prepare {
 
         for (const module of releaseModules) {
 
-            const parsed = parseModuleNameAndId(module);
+            const parsed = parseModuleNameAndId(module.id);
 
-            const m = new FolioModule(parsed.name,
-                parsed.version,
-                true,
-                fd.tenantId,
-                fd.okapiUrl,
-                fd.containerRepository);
-            folioModules.push(m);
+            if (module.action === "enable") {
+                const m = new FolioModule(parsed.name,
+                    parsed.version,
+                    true,
+                    fd.tenantId,
+                    fd.okapiUrl,
+                    fd.containerRepository);
+                folioModules.push(m);
+            }
         }
 
         return folioModules;
@@ -52,24 +53,7 @@ export module prepare {
 
     export function modulesForRelease(deploymentConfigFilePath: string): Array<any> {
         const release = fs.readFileSync(deploymentConfigFilePath, 'utf8');
-        return YAML.parse(release).modules;
-    }
-
-    export function shouldCreateSuperuser(deploymentConfigFilePath: string): boolean {
-        const release = fs.readFileSync(deploymentConfigFilePath, 'utf8');
-        let parsed: any = YAML.parse(release);
-        if (!parsed.hasOwnProperty("createSuperuser")) {
-            throw new Error("Deployment configuration file has no property createSuperuser");
-        }
-        return parsed.createSuperuser;
-    }
-
-    export function setCreateSuperuser(setTo: boolean, deploymentConfigFilePath: string) {
-        const release = fs.readFileSync(deploymentConfigFilePath, 'utf8');
-        let parsed: any = YAML.parse(release);
-        parsed.createSuperuser = setTo;
-
-        fs.writeFileSync(deploymentConfigFilePath, YAML.stringify(parsed));
+        return JSON.parse(release);
     }
 
     export function jobContainers(modules: FolioModule[]): input.core.v1.Container[] {
@@ -350,103 +334,6 @@ export module deploy {
         }
 
         return values;
-    }
-
-    /**
-     * Creates a superuser, if one needs to be created, applying all permissions,
-     * or if a superuser already exists, only updates superuser's permissions for the
-     * modules deployed. Whether or not to create the superuser or just update the
-     * permissions is controlled by the createSuperuser property in the deployment
-     * configuration yaml file.
-     *
-     * If the deployment configuration file has a value of true for createSuperuser
-     * this job will attempt to create that superuser. This should only be done if the
-     * superuser does not yet exist. And it should only be done once for a deployment.
-     * Attempting to create the superuser twice for a deployment will put the deployment
-     * in an unstable state and mod-users-bl, mod-authtoken and mod-login-saml will have
-     * to be redeployed if that mistake is made.
-     *
-     * This job will always update the superuser's permissions based on the modules
-     * installed so it should be run with the value of createSuperuser: false anytime
-     * a deployment's modules are changed.
-     *
-     * Note: changing a module's version is not the kind of change this function can handle.
-     * That's _upgrading a module_, and requires a different process. The only thing this script
-     * can handle is telling okapi about a new module _added_ to the stack.
-     *
-     * @param name The name for the job.
-     * @param superUserName The super user name.
-     * @param superUserPassword The superuser password.
-     * @param fd A reference to the current folio deployment object.
-     * @param namespace A reference to the k8s namespace.
-     * @param cluster A reference to the k8s cluster.
-     * @param dependsOn All modules that have been deployed. These deployments need to complete
-     * before running this since the modules need to be available to it.
-     * @returns A reference to the job resource.
-     */
-    export function bootstrapSuperuser(
-        name: string,
-        superUserName: pulumi.Output<string>,
-        superUserPassword: pulumi.Output<string>,
-        fd: FolioDeployment,
-        namespace: k8s.core.v1.Namespace,
-        cluster: eks.Cluster,
-        dependsOn?: Resource[]) {
-
-        const shouldCreateSuperuser: boolean =
-            prepare.shouldCreateSuperuser(fd.deploymentConfigurationFilePath);
-
-        // When FLAGS is empty the job will attempt to create the superuser.
-        // This should only be done once for a deployment so be careful about manually
-        // changing the value of createSuperuser in the deployment config file.
-        // See https://github.com/folio-org/folio-helm/blob/master/docker/bootstrap-superuser
-        // for how this all works.
-        let flags = ""; // This will create the superuser.
-        if (shouldCreateSuperuser === true) {
-            console.log(`Will attempt to create superuser for deployment:
-                ${fd.deploymentConfigurationFilePath}`);
-        } else {
-            console.log(`Not attempting to create superuser for deployment:
-                ${fd.deploymentConfigurationFilePath}`);
-            flags = "--onlyperms";
-        }
-
-        let env = [
-            { name: "ADMIN_USER", value: superUserName },
-            { name: "ADMIN_PASSWORD", value: superUserPassword },
-            { name: "OKAPI_URL", value: fd.okapiUrl },
-            { name: "TENANT_ID", value: fd.tenantId },
-            { name: "FLAGS", value: flags },
-        ];
-
-        return new k8s.batch.v1.Job(name, {
-            metadata: {
-                name: name,
-                namespace: namespace.id,
-            },
-
-            spec: {
-                template: {
-                    spec: {
-                        // This is what runs at the end.
-                        containers: [{
-                            name: name,
-                            image: `folioci/bootstrap-superuser`,
-                            env: env,
-                        }],
-
-                        restartPolicy: "Never",
-                    },
-                },
-                backoffLimit: 0
-            }
-        }, {
-            provider: cluster.provider,
-
-            dependsOn: dependsOn,
-
-            deleteBeforeReplace: true
-        });
     }
 
     /**
