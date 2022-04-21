@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
+DEPLOYMENT="R2-2021"
 OKAPI_URL="http://localhost:9000"
 TENANT_ID="cubl"
 CURL="curl -w\n -D - "
 IGNORE_ERRORS="false"
 REF_DATA="true"
 SAMPLE_DATA="false"
-DEPLOYMENT="R2-2021"
 
 H_JSON="-HContent-type:application/json"
 

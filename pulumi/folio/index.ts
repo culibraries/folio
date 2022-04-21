@@ -200,7 +200,7 @@ export const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider:
 export const folioNamespaceName = folioNamespace.metadata.name;
 
 // Create an object to represent the FOLIO deployment.
-const releaseFilePath = "./deployments/R2-2021.yaml";
+const releaseFilePath = "./deployments/R2-2021.json";
 const tenant = "cubl";
 const okapiUrl = "http://okapi:9130";
 const containerRepo = "folioorg";
@@ -345,29 +345,6 @@ folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", st
 folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
     folioCluster, folioNamespace, [...moduleReleases]);
 
-// TODO should we be pushing the deployment descriptors for front end modules at all?
-// NOTE folio-helm does, whereas TAMU does not.
-// Should we run these as separate jobs? Because right now if I add another module
-// I have to delete and recreate the job whereas which then re-registers every module
-// taking quite a while. This might work better if there was 1 pod per job so each
-// per job. Alternatively we just move this out of pulumi completely.
-const modDescriptorJob = folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
+// Deploy the module descriptors.
+folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
     folioNamespace, folioCluster, modules, [...moduleReleases]);
-
-// TODO Determine if the Helm chart takes care of the following:
-// Create hazelcast service account
-// Create hazelcast configmap
-
-// const superUserName = config.requireSecret("superuser-name");
-// const superUserPassword = config.requireSecret("superuser-password");
-// TODO We need a job to register the modules. We have a script for it, but not
-// yet a job. This can't be run until that has taken place so commenting out for
-// now.
-// const modRegistrationJob = folio.deploy.bootstrapSuperuser
-//     ("mod-reg-and-bootstrap-superuser",
-//     pulumi.interpolate`${superUserName}`,
-//     pulumi.interpolate`${superUserPassword}`,
-//     folioDeployment,
-//     folioNamespace,
-//     folioCluster,
-//     [modDescriptorJob]);
