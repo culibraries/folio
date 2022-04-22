@@ -200,7 +200,7 @@ export const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider:
 export const folioNamespaceName = folioNamespace.metadata.name;
 
 // Create an object to represent the FOLIO deployment.
-const releaseFilePath = "./deployments/R2-2021.json";
+const releaseFilePath = `./deployments/${config.require("release")}.json`;
 const tenant = "cubl";
 const okapiUrl = "http://okapi:9130";
 const containerRepo = "folioorg";
@@ -338,12 +338,14 @@ const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespac
     [productionOkapiRelease]);
 
 // These deploy with the name "platform-complete-dev or platform-complete for prod".
-// These tags and containers are the result of a manual build process. See the readme in the
-// containers/folio/stripes directory for how to do that.
-folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", stripesProdCertArn,
-    folioCluster, folioNamespace, [...moduleReleases]);
-folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
-    folioCluster, folioNamespace, [...moduleReleases]);
+// These tags and containers are the result of a scripted build process. See the readme in the
+// containers/folio/stripes directory for how that works.
+const stripesContainerTag = `${config.require("stripes-container-tag")}`;
+const stripesContainerTagDev = `dev.${config.require("stripes-container-tag")}`;
+folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", stripesContainerTag,
+    stripesProdCertArn, folioCluster, folioNamespace, [...moduleReleases]);
+folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", stripesContainerTagDev,
+    cublCtaCertArn, folioCluster, folioNamespace, [...moduleReleases]);
 
 // Deploy the module descriptors.
 folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",

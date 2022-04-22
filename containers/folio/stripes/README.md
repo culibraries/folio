@@ -10,8 +10,14 @@ The `build-release.sh` script requires two arguments:
 1. The name of the release such as `R3-2021`.
 2. The tag to use for the stripes container such as `dev.2021.r3.0`. See below for more
 explanation of the tag.
+3. The flower release name (i.e. "iris").
 
 In addition, set the `GITHUB_PAT` variable in your environment to your Github Personal Access Token.
+
+## WARNING
+This script modifies the pulumi config with details about the stripes and the release so make sure you're in the right pulumi stack where you want to apply these changes.
+
+If you'are in doubt do `pulumi stack ls` to see what stack you're on and `pulumi stack select <stack>` to switch to the right one.
 
 ## Versioning
 Versioning is intended to reflect the FOLIO release and our iterations for that release  `<env>.YYYY.<release>.<build number>`. Example: For the production third build of our Stripes frontend for Iris (2nd release of 2021), the version number would be `2021.r2.3`. For non production stripes consider: `dev.2021.r2.3`. `Build` numbering will start at `1` for each release.

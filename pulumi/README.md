@@ -60,6 +60,8 @@ cubl-pulumi/folio/dev/.pulumi
 
  To create a new stack do `pulumi stack init`. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
 
+ Or if that seems like a hassle take a look at the `pulumi config cp` command.
+
  #### Switching between stacks
 ```sh
 pulumi stack select <stack name>

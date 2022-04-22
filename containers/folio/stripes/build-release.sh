@@ -11,10 +11,17 @@ if [ -z "$GITHUB_PAT" ]; then
     exit 1
 fi
 
-# Grab the two arguments we need.
+# Check that we can access pulumi.
+if [ -z "$PULUMI_CONFIG_PASSPHRASE" ]; then
+    echo "Need to set PULUMI_CONFIG_PASSPHRASE in your env"
+    exit 1
+fi
+
+# Grab the arguments we need.
 RELEASE=$1
 STRIPES_TAG=$2 # Increment the suffix of this (the part after he last dot) manually when you need to push new builds.
-echo "Creating stripes build for release $RELEASE with stripes container tag $STRIPES_TAG"
+FLOWER=`echo "$3" | awk '{ print tolower($1) }'` # Make sure it is lowercase.
+echo "Creating stripes build for release $RELEASE $STRIPES_TAG $FLOWER"
 
 # Delete the temp dir if it exists so there is no error.
 if [ -d "temp" ]; then rm -Rf temp; fi
@@ -41,7 +48,7 @@ perl -i -pe "s/Opentown Libraries/University of Colorado Boulder Libraries/" str
 # handle both production and test FOLIO hosts.
 echo "Building stripes containers..."
 echo "This is going to take approximately 10 mins for each container (there are two)"
-docker build -t ghcr.io/culibraries/folio_stripes:dev.$STRIPES_TAG --build-arg OKAPI_URL=https://folio-iris-okapi.cublcta.com:9130 .
+docker build -t ghcr.io/culibraries/folio_stripes:dev.$STRIPES_TAG --build-arg OKAPI_URL=https://folio-$FLOWER-okapi.cublcta.com:9130 .
 docker build -t ghcr.io/culibraries/folio_stripes:$STRIPES_TAG --build-arg OKAPI_URL=https://okapi.colorado.edu:9130 .
 
 # GITHUB_PAT needs to be set in the local ENV for this next step to work.
@@ -49,3 +56,8 @@ echo "Pushing docker builds to github container registry"
 echo $GITHUB_PAT | docker login ghcr.io -u USERNAME --password-stdin
 docker push ghcr.io/culibraries/folio_stripes:dev.$STRIPES_TAG
 docker push ghcr.io/culibraries/folio_stripes:$STRIPES_TAG
+
+# Finally set the stripes container tag name in pulumi so that it can be used in pulumi up.
+pulumi config set stripes-container-tag $STRIPES_TAG
+# Do same for the releaase since that will likely be changing as well.
+pulumi config set release $RELEASE

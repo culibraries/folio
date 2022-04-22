@@ -14,6 +14,8 @@ config:
     secure: v1:YcVlN8Ghm60ohh+6:l6AHWgEV46/4chftsQZDYFoOWiuD
   folio:db-user-password:
     secure: v1:rTAjkn4lskvfPhP0:uvqgWnCAcNClVCZpI4R8Eg6DNPyZ0xb462XjgO9+2sgIRVEh
+  folio:release: R2-2021
+  folio:stripes-container-tag: 2021.r2.6
   folio:superuser-name:
     secure: v1:9uPN1vpREVz1IfAx:GOx6gmU3RbAvUW+I7eUHnO3cYKFsp7W264M=
   folio:superuser-password:
