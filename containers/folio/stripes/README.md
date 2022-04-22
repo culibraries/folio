@@ -1,61 +1,26 @@
-# Stripes
+# Building Stripes
 
-Container is based on the one found here: https://github.com/folio-org/platform-complete/blob/master/docker/Dockerfile
+The `build-release.sh` file takes care of the details of grabbing the files stripes needs from the remote FOLIO `platform-complete` repo for a given release, performs the builds, and finally pushes the resulting stripes container images to our github container registry.
 
-## Changing the hostname for the Stripes frontend
+Our Dockerfile is based on the one found here: https://github.com/folio-org/platform-complete/blob/master/docker/Dockerfile
 
-- Update hostname in `Dockerfile`. This overrides the url in stripes.config.js so no need to change that.
-- Build and deploy the container
+We customize the Dockerfile a bit, therefore we keep our own Dockerfile, but that's it. Everything else is obtained from the remote repo.
 
-## Getting the correct versions of packages
+The `build-release.sh` script requires two arguments:
+1. The name of the release such as `R3-2021`.
+2. The tag to use for the stripes container such as `dev.2021.r3.0`. See below for more
+explanation of the tag.
 
-We want to make sure that we are building the correct Stripes frontend for a flower release. There are several files that we need to copy and modify (or maintain our modifications to):
+In addition, set the `GITHUB_PAT` variable in your environment to your Github Personal Access Token.
 
-- `stripes.config.js`
-- `package.json`
-- `yarn.lock`
-
-These files can be found on the release branches of the `folio-org/platform-complete` repository, like the [R2 2021 branch](https://github.com/folio-org/platform-complete/tree/R2-2021)
-
-- [ ] TODO figure out what the `renovate.js` file in the folio repo is for.
-
-## Building the containers
+## Versioning
 Versioning is intended to reflect the FOLIO release and our iterations for that release  `<env>.YYYY.<release>.<build number>`. Example: For the production third build of our Stripes frontend for Iris (2nd release of 2021), the version number would be `2021.r2.3`. For non production stripes consider: `dev.2021.r2.3`. `Build` numbering will start at `1` for each release.
 
-These releases can then be applied to the cluster via variables in the index.ts file.
-
-To build the stripes container that services non-production environments do:
-
-```sh
-docker build -t ghcr.io/culibraries/folio_stripes:<version> --build-arg OKAPI_URL=https://folio-iris-okapi.cublcta.com:9130 .
-```
-
-To build the stripes container that services production environments do:
-
-```sh
-docker build -t ghcr.io/culibraries/folio_stripes:<version> --build-arg OKAPI_URL=https://okapi.colorado.edu:9130 .
-```
+These releases are then be applied to the cluster via config variables in the index.ts file.
 
 **We use the term "dev" here to refer to non-production environments serviced by the `*.cublcta.com` certificates. These environments can logically be for "testing", "scratch", "staging" or other purposes. The point is that "dev" is non-production.**
 
-### Give docker enough memory
+## Give docker enough memory
 Stripes requires a fair amount of RAM to build.
 
 If you get a SIGINT or similar failure during build it is likely because you don't have enough memory allocated to docker. To fix this on a mac, click on the docker icon in your toolbar, go to Preferences > Advanced and give docker more memory with the slider in the docker GUI.
-
-### Pushing the container
-
-For the rebuilt container to be used by pulumi you'll need to push it out to ghcr.
-
-To push any changes to this container to our github package hub:
-
-1. Get a Personal Access Token
-2. Export it to your env
-3. Login
-4. Push to it
-
-```shell
-export CR_PAT=YOUR_TOKEN
-echo $CR_PAT | docker login ghcr.io -u USERNAME --password-stdin
-docker push ghcr.io/culibraries/folio_stripes:<version>
-```
