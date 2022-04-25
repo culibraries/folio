@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -eq 0 ] ; then
-    echo "No arguments supplied. You need to provide the release and the stripes container tag. See README."
+    echo "No arguments supplied."
     exit 1
 fi
 
@@ -57,7 +57,13 @@ echo $GITHUB_PAT | docker login ghcr.io -u USERNAME --password-stdin
 docker push ghcr.io/culibraries/folio_stripes:dev.$STRIPES_TAG
 docker push ghcr.io/culibraries/folio_stripes:$STRIPES_TAG
 
-# Finally set the stripes container tag name in pulumi so that it can be used in pulumi up.
+echo "Changing to the the pulumi project directory..."
+cd ../../../pulumi/folio # Have to be in this directory to invoke pulumi command.
+echo "Switched to: $PWD"
+echo "Setting pulumi config value for stripes container tag $STRIPES_TAG..."
 pulumi config set stripes-container-tag $STRIPES_TAG
 # Do same for the releaase since that will likely be changing as well.
+echo "Setting pulumi config value for the release $RELEASE..."
 pulumi config set release $RELEASE
+cd ../../containers/folio/stripes # Go back to where this script lives.
+echo "Back in script directory: $PWD"
