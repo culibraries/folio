@@ -1,7 +1,7 @@
 #!/bin/bash
 
-if [ $# -eq 0 ] ; then
-    echo "No arguments supplied."
+if [ $# -ne 3 ] ; then
+    echo "Wrong number of arguments."
     exit 1
 fi
 
