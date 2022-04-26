@@ -1,5 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
+import * as awsNative from "@pulumi/aws-native";
 import * as k8s from "@pulumi/kubernetes";
 
 import * as vpc from "./vpc.js"
@@ -153,11 +154,18 @@ const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
 // Export the custom cluster endpoint to be the db host which is used by the app.
 export const folioDbHost = clusterEndpoint.endpoint;
 
-// TODO Create resources that will be needed for mod-search. Like RDS above, this is created outside
-// of the cluster.
-const searchDomain = util.getStackSearchIdentifier();
-const domain = search.deploy.openSearchDomain
-    ("folio-search", searchDomain, folioSecurityGroupId, await vpcPrivateSubnetIds, [ ]);
+// Create the opensearch domain that will be needed for mod-search. Like RDS above, this is
+// created outside of the k8s cluster so that it can be managed by AWS instead of by us.
+// Note that this export will be undefined if mod-search isn't in scope in the deployment
+// module list and no domain will be exported.
+export const folioSearchDomain = search.deploy.domain( "folio-search",
+    folioModules,
+    folioSecurityGroupId,
+    await vpcPrivateSubnetIds, // Is a Promise wrapping an Output so we need to await the result.
+    "c6g.large.search",
+    2,
+    "m3.medium.search",
+    [ folioSecurityGroup, folioVpc ]);
 
 // Create our own IAM role and profile which we can bind into the EKS cluster's
 // NodeGroup when we create it next. Cluster will also create a default for us, but
@@ -313,7 +321,7 @@ var dbCreateJob = {} as k8s.batch.v1.Job;
 }
 
 // Get a reference to the okapi module.
-const okapiModule: FolioModule = util.getModuleByName("okapi", folioModules);
+const okapiModule = util.getModuleByName("okapi", folioModules);
 
 // The cublctaCertArn is a wildcard certificate so there's only one ARN. This is *.cublcta.com.
 const cublCtaCertArn: string =
