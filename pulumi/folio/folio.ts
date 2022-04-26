@@ -1,6 +1,6 @@
 
-import { FolioModule } from "./classes/FolioModule";
-import { FolioDeployment } from "./classes/FolioDeployment";
+import { FolioModule } from "./classes/FolioModule.js";
+import { FolioDeployment } from "./classes/FolioDeployment.js";
 
 import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";

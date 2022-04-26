@@ -1,5 +1,6 @@
 encryptionsalt: v1:ez7rMN1pmrs=:v1:dJp/ZOu+XyCrL973:EEVsQsaXBJuaocWxruhwhgWSs5PZDA==
 config:
+  aws-native:region: us-west-2
   aws:region: us-west-2
   folio:awsAccountId:
     secure: v1:r0KFHApyP37saRxU:Aj3oF4WFAoQTRtliyW9yuYl1rDhIMkMcD8/zuA==

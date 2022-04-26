@@ -2,20 +2,19 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as k8s from "@pulumi/kubernetes";
 
-import * as vpc from "./vpc"
-import * as iam from "./iam";
-import * as cluster from "./cluster";
-import * as kafka from "./kafka";
-import * as postgresql from "./postgresql";
-import * as folio from "./folio";
-import * as util from "./util";
+import * as vpc from "./vpc.js"
+import * as iam from "./iam.js";
+import * as cluster from "./cluster.js";
+import * as kafka from "./kafka.js";
+import * as postgresql from "./postgresql.js";
+import * as search from "./search.js";
+import * as folio from "./folio.js";
+import * as util from "./util.js";
 
-import { FolioModule } from "./classes/FolioModule";
-import { FolioDeployment } from "./classes/FolioDeployment";
-import { RdsClusterResources } from "./classes/RdsClusterResources";
 import { Resource } from "@pulumi/pulumi";
-
-// import * as pulumiPostgres from "@pulumi/postgresql";
+import { FolioModule } from "./classes/FolioModule.js";
+import { FolioDeployment } from "./classes/FolioDeployment.js";
+import { RdsClusterResources } from "./classes/RdsClusterResources.js";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -25,6 +24,20 @@ const tags = {
     "Accounting": "cubl-folio",
     "DataClassificationCompliance": "standard"
 };
+
+// Create an object to represent the FOLIO deployment.
+const config = new pulumi.Config();
+const releaseFilePath = `./deployments/${config.require("release")}.json`;
+const tenant = "cubl";
+const okapiUrl = "http://okapi:9130";
+const containerRepo = "folioorg";
+const folioDeployment = new FolioDeployment(tenant,
+    releaseFilePath,
+    okapiUrl,
+    containerRepo);
+
+// Prepare the list of modules to deploy.
+const folioModules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Create the CIDR block for the VPC. This is the default, but there
 // are some items in our security group that should have this range rather
@@ -48,7 +61,6 @@ export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
 
 // Create the database resources that are needed in our VPC. At minimum we need a
 // database subnet group, and a cluster reference.
-const config = new pulumi.Config();
 export const folioDbPort = 5432;
 export const dbSubnetGroupName = "folio-db-subnet";
 const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
@@ -87,7 +99,7 @@ const dbUserPassword = config.requireSecret("db-user-password");
 // a special key in the configuration which will perform the swap on subsequent updates.
 let rdsClusterResources = {} as RdsClusterResources;
 if (shouldCreateOwnDbCluster()) {
-    const clusterName = pulumi.getStack() === "scratch" ? "folio-pg-scratch" : "folio-pg";
+    const clusterName = util.getStackDbIdentifier();
     const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
     const pgClusterId = `${clusterName}-cluster`;
     rdsClusterResources = postgresql.deploy.newRdsCluster(clusterName,
@@ -140,6 +152,12 @@ const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
 
 // Export the custom cluster endpoint to be the db host which is used by the app.
 export const folioDbHost = clusterEndpoint.endpoint;
+
+// TODO Create resources that will be needed for mod-search. Like RDS above, this is created outside
+// of the cluster.
+const searchDomain = util.getStackSearchIdentifier();
+const domain = search.deploy.openSearchDomain
+    ("folio-search", searchDomain, folioSecurityGroupId, await vpcPrivateSubnetIds, [ ]);
 
 // Create our own IAM role and profile which we can bind into the EKS cluster's
 // NodeGroup when we create it next. Cluster will also create a default for us, but
@@ -198,16 +216,6 @@ export const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider:
 
 // Export the namespace for us in other functions.
 export const folioNamespaceName = folioNamespace.metadata.name;
-
-// Create an object to represent the FOLIO deployment.
-const releaseFilePath = `./deployments/${config.require("release")}.json`;
-const tenant = "cubl";
-const okapiUrl = "http://okapi:9130";
-const containerRepo = "folioorg";
-const folioDeployment = new FolioDeployment(tenant,
-    releaseFilePath,
-    okapiUrl,
-    containerRepo);
 
 // Create a configMap for folio for certain non-secret environment variables that will be deployed.
 const configMapData = {
@@ -303,11 +311,9 @@ var dbCreateJob = {} as k8s.batch.v1.Job;
         "postgres",
         [folioNamespace, rdsClusterResources.cluster, ...rdsClusterResources.instances]);
 }
-// Prepare the list of modules to deploy.
-const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
-const okapiModule: FolioModule = util.getModuleByName("okapi", modules);
+const okapiModule: FolioModule = util.getModuleByName("okapi", folioModules);
 
 // The cublctaCertArn is a wildcard certificate so there's only one ARN. This is *.cublcta.com.
 const cublCtaCertArn: string =
@@ -334,7 +340,7 @@ const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModu
     okapiCertArn, folioCluster, folioNamespace, okapiDependencies);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
-const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
+const moduleReleases = folio.deploy.modules(folioModules, folioCluster, folioNamespace,
     [productionOkapiRelease]);
 
 // These deploy with the name "platform-complete-dev or platform-complete for prod".
@@ -349,4 +355,4 @@ folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", stripesContainer
 
 // Deploy the module descriptors.
 folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
-    folioNamespace, folioCluster, modules, [...moduleReleases]);
+    folioNamespace, folioCluster, folioModules, [...moduleReleases]);

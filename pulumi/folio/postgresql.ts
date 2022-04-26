@@ -1,4 +1,4 @@
-import { RdsClusterResources } from "./classes/RdsClusterResources";
+import { RdsClusterResources } from "./classes/RdsClusterResources.js";
 
 import * as pulumi from "@pulumi/pulumi";
 import { Output, Resource } from "@pulumi/pulumi";
@@ -46,7 +46,7 @@ export module deploy {
         backupRetentionPeriod: number,
         preferredBackupWindow: string,
         engineVersion: string,
-        vpcSecurityGroupIds: Output<string>,
+        vpcSecurityGroupId: Output<string>,
         finalSnapshotIdentifier: string,
         skipFinalSnapshot: boolean,
 
@@ -74,7 +74,7 @@ export module deploy {
 
             // This is necessary, otherwise it will bind the rds cluster to the default security
             // group.
-            vpcSecurityGroupIds:[ vpcSecurityGroupIds ],
+            vpcSecurityGroupIds:[ vpcSecurityGroupId ],
         }, {
             dependsOn: dependsOn
         });

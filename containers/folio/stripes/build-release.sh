@@ -5,7 +5,7 @@ if [ $# -ne 3 ] ; then
     exit 1
 fi
 
-# Check that the github personal access token is set in the env.
+# Check that the github personal access token are set in the env.
 if [ -z "$GITHUB_PAT" ]; then
     echo "Need to set GITHUB_PAT in your env"
     exit 1
