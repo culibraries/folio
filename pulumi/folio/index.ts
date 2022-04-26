@@ -1,21 +1,21 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import * as awsNative from "@pulumi/aws-native";
 import * as k8s from "@pulumi/kubernetes";
 
-import * as vpc from "./vpc.js"
-import * as iam from "./iam.js";
-import * as cluster from "./cluster.js";
-import * as kafka from "./kafka.js";
-import * as postgresql from "./postgresql.js";
-import * as search from "./search.js";
-import * as folio from "./folio.js";
-import * as util from "./util.js";
+import * as vpc from "./vpc"
+import * as iam from "./iam";
+import * as cluster from "./cluster";
+import * as kafka from "./kafka";
+import * as postgresql from "./postgresql";
+import * as search from "./search";
+import * as folio from "./folio";
+import * as util from "./util";
 
 import { Resource } from "@pulumi/pulumi";
-import { FolioModule } from "./classes/FolioModule.js";
-import { FolioDeployment } from "./classes/FolioDeployment.js";
-import { RdsClusterResources } from "./classes/RdsClusterResources.js";
+import { FolioModule } from "./classes/FolioModule";
+import { FolioDeployment } from "./classes/FolioDeployment";
+import { RdsClusterResources } from "./classes/RdsClusterResources";
+import { DynamicSecret } from "./interfaces/DynamicSecret";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -36,9 +36,6 @@ const folioDeployment = new FolioDeployment(tenant,
     releaseFilePath,
     okapiUrl,
     containerRepo);
-
-// Prepare the list of modules to deploy.
-const folioModules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Create the CIDR block for the VPC. This is the default, but there
 // are some items in our security group that should have this range rather
@@ -158,10 +155,10 @@ export const folioDbHost = clusterEndpoint.endpoint;
 // created outside of the k8s cluster so that it can be managed by AWS instead of by us.
 // Note that this export will be undefined if mod-search isn't in scope in the deployment
 // module list and no domain will be exported.
-export const folioSearchDomain = search.deploy.domain( "folio-search",
-    folioModules,
+export const folioSearchDomain = search.deploy.domain("folio-search",
+    folioDeployment.modules,
     folioSecurityGroupId,
-    await vpcPrivateSubnetIds, // Is a Promise wrapping an Output so we need to await the result.
+    vpcPrivateSubnetIds,
     "c6g.large.search",
     2,
     "m3.medium.search",
@@ -239,9 +236,19 @@ const appLabels = { appClass: appName };
 const configMap = folio.deploy.configMap("default-config",
     configMapData, appLabels, folioCluster, folioNamespace, [folioNamespace]);
 
+// Create a secret for the opensearch dashboard username and password.
+const openSearchDashboardUsername = config.requireSecret("search-puser-name");
+const openSearchDashboardPassword = config.requireSecret("search-password");
+const openSearchSecretData = {
+    USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
+    PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
+};
+const openSearchSecret = folio.deploy.secret("opensearchdashboards-auth", openSearchSecretData,
+    appLabels, folioCluster, folioNamespace, [folioNamespace]);
+
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
-var dbConnectSecretData = {
+var dbConnectSecretData:DynamicSecret = {
     DB_HOST: util.base64Encode(folioDbHost),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
@@ -273,8 +280,14 @@ var dbConnectSecretData = {
 
     // These two are required by mod-service-interaction.
     OKAPI_PORT: Buffer.from("9130").toString("base64"),
-    OKAPI_HOST: Buffer.from("okapi").toString("base64")
-};
+    OKAPI_HOST: Buffer.from("okapi").toString("base64"),
+}
+
+// Add some additional properties if we are deploying search.
+if (folioSearchDomain !== undefined) {
+    dbConnectSecretData.ELASTICSEARCH_URL = util.base64Encode(pulumi.interpolate`${folioSearchDomain}`);
+}
+
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
 const dbConnectSecret = folio.deploy.secret("db-connect-modules", dbConnectSecretData,
@@ -321,7 +334,7 @@ var dbCreateJob = {} as k8s.batch.v1.Job;
 }
 
 // Get a reference to the okapi module.
-const okapiModule = util.getModuleByName("okapi", folioModules);
+const okapiModule = util.getModuleByName("okapi", folioDeployment.modules);
 
 // The cublctaCertArn is a wildcard certificate so there's only one ARN. This is *.cublcta.com.
 const cublCtaCertArn: string =
@@ -348,7 +361,7 @@ const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModu
     okapiCertArn, folioCluster, folioNamespace, okapiDependencies);
 
 // Deploy the rest of the modules that we want. This excludes okapi.
-const moduleReleases = folio.deploy.modules(folioModules, folioCluster, folioNamespace,
+const moduleReleases = folio.deploy.modules(folioDeployment.modules, folioCluster, folioNamespace,
     [productionOkapiRelease]);
 
 // These deploy with the name "platform-complete-dev or platform-complete for prod".
@@ -363,4 +376,4 @@ folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", stripesContainer
 
 // Deploy the module descriptors.
 folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
-    folioNamespace, folioCluster, folioModules, [...moduleReleases]);
+    folioNamespace, folioCluster, folioDeployment.modules, [...moduleReleases]);

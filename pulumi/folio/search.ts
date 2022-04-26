@@ -1,16 +1,16 @@
 
 import { Output, Resource } from "@pulumi/pulumi";
-import { FolioModule } from "./classes/FolioModule.js";
+import { FolioModule } from "./classes/FolioModule";
 
 import * as awsNative from "@pulumi/aws-native";
-import * as util from "./util.js";
+import * as util from "./util";
 
 export module deploy {
     export function domain(
         name: string,
         modules: FolioModule[],
         vpcSecurityGroupId: Output<string>,
-        subnetIds: Output<string>[],
+        subnetIds: Promise<Output<string>[]>,
         instanceType: string,
         instanceCount: number,
         dedicatedMasterType: string,
@@ -34,7 +34,7 @@ export module deploy {
         name: string,
         domainName: string,
         vpcSecurityGroupId: Output<string>,
-        subnetIds: Output<string>[],
+        subnetIds: Promise<Output<string>[]>,
         instanceType: string,
         instanceCount: number,
         dedicatedMasterType: string,

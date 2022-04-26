@@ -1,4 +1,4 @@
-import { RdsClusterResources } from "./classes/RdsClusterResources.js";
+import { RdsClusterResources } from "./classes/RdsClusterResources";
 
 import * as pulumi from "@pulumi/pulumi";
 import { Output, Resource } from "@pulumi/pulumi";
