@@ -1,10 +1,10 @@
 
 import { FolioModule } from "./classes/FolioModule";
 import * as k8s from "@pulumi/kubernetes";
-
 import * as input from "@pulumi/kubernetes/types/input";
 import * as eks from "@pulumi/eks";
 import { Resource } from "@pulumi/pulumi";
+import { SecretArgs } from "./interfaces/SecretArgs";
 
 export module prepare {
 
@@ -64,24 +64,19 @@ export module deploy {
             });
     }
 
-    export function secret(name: string,
-        data: any,
-        labels: any,
-        cluster: eks.Cluster,
-        namespace: k8s.core.v1.Namespace,
-        dependsOn?: Resource[]): k8s.core.v1.Secret {
-        return new k8s.core.v1.Secret(name,
+    export function secret(args: SecretArgs): k8s.core.v1.Secret {
+        return new k8s.core.v1.Secret(args.name,
             {
                 metadata: {
-                    name: name,
-                    labels: labels,
-                    namespace: namespace.id,
+                    name: args.name,
+                    labels: args.labels,
+                    namespace: args.namespace.id,
                 },
-                data: data,
+                data: args.data,
             },
             {
-                provider: cluster.provider,
-                dependsOn: dependsOn
+                provider: args.cluster.provider,
+                dependsOn: args. dependsOn
             });
     }
 
@@ -227,7 +222,8 @@ export module deploy {
         // prior to deploying the modules. Also, the front-end modules are only relevant
         // later when they need to be registered to okapi. In other words, they are not
         // containers that get deployed, like the regular modules.
-        toDeploy = toDeploy.filter(module => module.name !== "okapi")
+        toDeploy = toDeploy
+            .filter(module => module.name !== "okapi")
             .filter(module => !module.name.startsWith("folio_"));
 
         const moduleReleases: Resource[] = [];

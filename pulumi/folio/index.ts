@@ -15,6 +15,9 @@ import { Resource } from "@pulumi/pulumi";
 import { FolioDeployment } from "./classes/FolioDeployment";
 import { RdsClusterResources } from "./classes/RdsClusterResources";
 import { DynamicSecret } from "./interfaces/DynamicSecret";
+import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
+import { NodeGroupArgs } from "./interfaces/NodeGroupArgs";
+import { SecretArgs } from "./interfaces/SecretArgs";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -154,14 +157,17 @@ export const folioDbHost = clusterEndpoint.endpoint;
 // created outside of the k8s cluster so that it can be managed by AWS instead of by us.
 // Note that this export will be undefined if mod-search isn't in scope in the deployment
 // module list and no domain will be exported.
-export const folioSearchDomain = search.deploy.domain("folio-search",
-    folioDeployment.modules,
-    folioSecurityGroupId,
-    vpcPrivateSubnetIds,
-    "m5.large.search",
-    2,
-    "m6g.large.search",
-    [ folioSecurityGroup, folioVpc ]);
+const searchArgs: SearchDomainArgs = {
+    name: "folio-search",
+    fd: folioDeployment,
+    vpcSecurityGroupId: folioSecurityGroupId,
+    subnetIds: vpcPrivateSubnetIds,
+    instanceType: "m5.large.search",
+    instanceCount:2,
+    dedicatedMasterType: "m6g.large.search",
+    dependsOn: [ folioSecurityGroup, folioVpc ]
+};
+export const folioSearchDomain = search.deploy.domain(searchArgs);
 
 // Create our own IAM role and profile which we can bind into the EKS cluster's
 // NodeGroup when we create it next. Cluster will also create a default for us, but
@@ -193,7 +199,7 @@ export const eksClusterName = folioCluster.eksCluster.name;
 // Create the node group with a bit more control than we would be given with the
 // defaults. Using this approach we could create multiple node groups if we wanted to
 // each with its own properties and InstanceProfile.
-const folioNodeGroupArgs = {
+const nodeGroupArgs: NodeGroupArgs = {
     name: "folio-node-group",
     instanceType: aws.ec2.InstanceType.T3_XLarge,
     desiredCapacity: 4,
@@ -202,7 +208,7 @@ const folioNodeGroupArgs = {
     // On-demand are the more expensive, non-spot instances.
     labels: { "ondemand": "true" }
 };
-cluster.deploy.awsCreateEksNodeGroup(folioNodeGroupArgs, folioCluster, folioInstanceProfile);
+cluster.deploy.awsCreateEksNodeGroup(nodeGroupArgs, folioCluster, folioInstanceProfile);
 
 // Configure the networking addons that we want.
 // See https://www.pulumi.com/registry/packages/aws/api-docs/eks/addon/
@@ -239,12 +245,19 @@ const configMap = folio.deploy.configMap("default-config",
 if (folioDeployment.hasSearch()) {
     const openSearchDashboardUsername = config.requireSecret("search-user-name");
     const openSearchDashboardPassword = config.requireSecret("search-password");
-    const openSearchSecretData = {
+    const openSearchSecretData: DynamicSecret = {
         USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
         PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
     };
-    folio.deploy.secret("opensearchdashboards-auth", openSearchSecretData,
-        appLabels, folioCluster, folioNamespace, [folioNamespace]);
+    const secretArgs: SecretArgs = {
+        name: "opensearchdashboards-auth",
+        labels: appLabels,
+        cluster: folioCluster,
+        namespace: folioNamespace,
+        data: openSearchSecretData,
+        dependsOn: [ folioNamespace ]
+    };
+    folio.deploy.secret(secretArgs);
 }
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
@@ -290,27 +303,46 @@ if (folioDeployment.hasSearch()) {
 
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
-const dbConnectSecret = folio.deploy.secret("db-connect-modules", dbConnectSecretData,
-    appLabels, folioCluster, folioNamespace, [folioNamespace]);
+const dbSecretArgs: SecretArgs = {
+    name: "db-connect-modules",
+    data: dbConnectSecretData,
+    labels: appLabels,
+    cluster: folioCluster,
+    namespace: folioNamespace,
+    dependsOn: [folioNamespace]
+};
+const dbConnectSecret = folio.deploy.secret(dbSecretArgs);
 
 // Bucket required by mod-data-export, which is required by mod-inventory.
 // TODO Create this bucket in pulumi.
 const dataExportBucket = `folio-data-export-${pulumi.getStack()}`;
-var s3CredentialsDataExportSecretData = {
+var s3CredentialsDataExportSecretData: DynamicSecret = {
     AWS_ACCESS_KEY_ID: Buffer.from("TODO").toString("base64"),
     AWS_BUCKET: Buffer.from(dataExportBucket).toString("base64"),
     AWS_REGION: Buffer.from("TODO").toString("base64"),
     AWS_SECRET_ACCESS_KEY: Buffer.from("TODO").toString("base64"),
     AWS_URL: Buffer.from("https://s3.amazonaws.com").toString("base64")
 };
-const s3CredentialsDataExportSecret = folio.deploy.secret("s3-credentials-data-export",
-    s3CredentialsDataExportSecretData, appLabels, folioCluster,
-    folioNamespace, [folioNamespace]);
+const s3SecretArgs: SecretArgs = {
+    name: "s3-credentials-data-export",
+    data: s3CredentialsDataExportSecretData,
+    labels: appLabels,
+    cluster: folioCluster,
+    namespace: folioNamespace,
+    dependsOn: [folioNamespace]
+}
+const s3CredentialsDataExportSecret = folio.deploy.secret(s3SecretArgs);
 // Note for some reason the folio-helm chart for mod-data-export-worker requires the same items
 // but with a different name.
-const s3CredentialsSecret = folio.deploy.secret("s3-credentials",
-    s3CredentialsDataExportSecretData, appLabels, folioCluster,
-    folioNamespace, [folioNamespace]);
+const s3CredentialSecretArgs: SecretArgs = {
+    name: "s3-credentials",
+    data: s3CredentialsDataExportSecretData,
+    labels: appLabels,
+    cluster: folioCluster,
+    namespace:  folioNamespace,
+    dependsOn: [folioNamespace]
+};
+const s3CredentialsSecret = folio.deploy.secret(s3CredentialSecretArgs);
 
 // Deploy Kafka via a Helm Chart into the FOLIO namespace.
 export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNamespace,
