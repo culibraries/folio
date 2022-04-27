@@ -12,7 +12,6 @@ import * as folio from "./folio";
 import * as util from "./util";
 
 import { Resource } from "@pulumi/pulumi";
-import { FolioModule } from "./classes/FolioModule";
 import { FolioDeployment } from "./classes/FolioDeployment";
 import { RdsClusterResources } from "./classes/RdsClusterResources";
 import { DynamicSecret } from "./interfaces/DynamicSecret";
@@ -159,9 +158,9 @@ export const folioSearchDomain = search.deploy.domain("folio-search",
     folioDeployment.modules,
     folioSecurityGroupId,
     vpcPrivateSubnetIds,
-    "c6g.large.search",
+    "m5.large.search",
     2,
-    "m3.medium.search",
+    "m6g.large.search",
     [ folioSecurityGroup, folioVpc ]);
 
 // Create our own IAM role and profile which we can bind into the EKS cluster's
@@ -237,15 +236,16 @@ const configMap = folio.deploy.configMap("default-config",
     configMapData, appLabels, folioCluster, folioNamespace, [folioNamespace]);
 
 // Create a secret for the opensearch dashboard username and password.
-const openSearchDashboardUsername = config.requireSecret("search-puser-name");
-const openSearchDashboardPassword = config.requireSecret("search-password");
-const openSearchSecretData = {
-    USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
-    PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
-};
-const openSearchSecret = folio.deploy.secret("opensearchdashboards-auth", openSearchSecretData,
-    appLabels, folioCluster, folioNamespace, [folioNamespace]);
-
+if (folioDeployment.hasSearch()) {
+    const openSearchDashboardUsername = config.requireSecret("search-user-name");
+    const openSearchDashboardPassword = config.requireSecret("search-password");
+    const openSearchSecretData = {
+        USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
+        PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
+    };
+    folio.deploy.secret("opensearchdashboards-auth", openSearchSecretData,
+        appLabels, folioCluster, folioNamespace, [folioNamespace]);
+}
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
 var dbConnectSecretData:DynamicSecret = {
@@ -284,7 +284,7 @@ var dbConnectSecretData:DynamicSecret = {
 }
 
 // Add some additional properties if we are deploying search.
-if (folioSearchDomain !== undefined) {
+if (folioDeployment.hasSearch()) {
     dbConnectSecretData.ELASTICSEARCH_URL = util.base64Encode(pulumi.interpolate`${folioSearchDomain}`);
 }
 

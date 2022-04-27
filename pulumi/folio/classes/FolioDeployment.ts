@@ -1,5 +1,6 @@
 import { FolioModule } from "./FolioModule";
 import * as fs from 'fs';
+import * as util from "../util";
 
 /**
  * Represents details about a FOLIO kubernetes deployment.
@@ -42,6 +43,10 @@ export class FolioDeployment {
                 this.modules.push(m);
             }
         }
+    }
+
+    public hasSearch() {
+        return util.moduleExistsInList("mod-search", this.modules);
     }
 
     static parseModuleNameAndId(moduleId: string): any {
