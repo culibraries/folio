@@ -9,5 +9,6 @@ export interface SearchDomainArgs {
     instanceType: string,
     instanceCount: number,
     dedicatedMasterType: string,
+    volumeSize: number,
     dependsOn?: Resource[]
 }

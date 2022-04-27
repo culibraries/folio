@@ -18,6 +18,7 @@ import { DynamicSecret } from "./interfaces/DynamicSecret";
 import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
 import { NodeGroupArgs } from "./interfaces/NodeGroupArgs";
 import { SecretArgs } from "./interfaces/SecretArgs";
+import { SearchHelmChartArgs } from "./interfaces/SearchHelmChartArgs";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -142,7 +143,7 @@ const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
     clusterIdentifier: dbClusterIdentifier,
     clusterEndpointIdentifier: customEndpointName,
     customEndpointType: "ANY",
-    tags: {"Name": customEndpointName, ...tags },
+    tags: { "Name": customEndpointName, ...tags },
 }, {
     // This doesn't mean that the dns entry will change. If fact, the dns remains
     // the same after a new instance is created.
@@ -152,22 +153,6 @@ const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
 
 // Export the custom cluster endpoint to be the db host which is used by the app.
 export const folioDbHost = clusterEndpoint.endpoint;
-
-// Create the opensearch domain that will be needed for mod-search. Like RDS above, this is
-// created outside of the k8s cluster so that it can be managed by AWS instead of by us.
-// Note that this export will be undefined if mod-search isn't in scope in the deployment
-// module list and no domain will be exported.
-const searchArgs: SearchDomainArgs = {
-    name: "folio-search",
-    fd: folioDeployment,
-    vpcSecurityGroupId: folioSecurityGroupId,
-    subnetIds: vpcPrivateSubnetIds,
-    instanceType: "m5.large.search",
-    instanceCount:2,
-    dedicatedMasterType: "m6g.large.search",
-    dependsOn: [ folioSecurityGroup, folioVpc ]
-};
-export const folioSearchDomain = search.deploy.domain(searchArgs);
 
 // Create our own IAM role and profile which we can bind into the EKS cluster's
 // NodeGroup when we create it next. Cluster will also create a default for us, but
@@ -179,7 +164,7 @@ const workerRoleManagedPolicyArns: string[] = [
     "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
 ];
 const folioWorkerRoleName = "folio-worker-role";
-const folioWorkerRole:aws.iam.Role = iam.deploy.awsRoleWithManagedPolicyAttachments
+const folioWorkerRole: aws.iam.Role = iam.deploy.awsRoleWithManagedPolicyAttachments
     (folioWorkerRoleName, tags, workerRoleManagedPolicyArns, "ec2.amazonaws.com");
 const folioInstanceProfile =
     iam.deploy.awsBindRoleToInstanceProfile("folio-worker-role-instance-profile", folioWorkerRole);
@@ -241,27 +226,11 @@ const appLabels = { appClass: appName };
 const configMap = folio.deploy.configMap("default-config",
     configMapData, appLabels, folioCluster, folioNamespace, [folioNamespace]);
 
-// Create a secret for the opensearch dashboard username and password.
-if (folioDeployment.hasSearch()) {
-    const openSearchDashboardUsername = config.requireSecret("search-user-name");
-    const openSearchDashboardPassword = config.requireSecret("search-password");
-    const openSearchSecretData: DynamicSecret = {
-        USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
-        PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
-    };
-    const secretArgs: SecretArgs = {
-        name: "opensearchdashboards-auth",
-        labels: appLabels,
-        cluster: folioCluster,
-        namespace: folioNamespace,
-        data: openSearchSecretData,
-        dependsOn: [ folioNamespace ]
-    };
-    folio.deploy.secret(secretArgs);
-}
+// Create a secret for the opensearch dashboard username and password and deploy the chart.
+// Also create the chart.
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
-var dbConnectSecretData:DynamicSecret = {
+var dbConnectSecretData: DynamicSecret = {
     DB_HOST: util.base64Encode(folioDbHost),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
@@ -296,8 +265,47 @@ var dbConnectSecretData:DynamicSecret = {
     OKAPI_HOST: Buffer.from("okapi").toString("base64"),
 }
 
-// Add some additional properties if we are deploying search.
 if (folioDeployment.hasSearch()) {
+    // Create the opensearch domain that will be needed for mod-search. Like RDS above, this is
+    // created outside of the k8s cluster so that it can be managed by AWS instead of by us.
+    const searchArgs: SearchDomainArgs = {
+        name: "folio-search",
+        fd: folioDeployment,
+        vpcSecurityGroupId: folioSecurityGroupId,
+        subnetIds: vpcPrivateSubnetIds,
+        instanceType: "m5.large.search",
+        instanceCount: 2,
+        dedicatedMasterType: "m6g.large.search", // Smaller than instances.
+        volumeSize: 200,
+        dependsOn: [folioSecurityGroup, folioVpc]
+    };
+    const folioSearchDomain = search.deploy.domain(searchArgs);
+    const openSearchDashboardUsername = config.requireSecret("search-user-name");
+    const openSearchDashboardPassword = config.requireSecret("search-password");
+    const openSearchSecretData: DynamicSecret = {
+        USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
+        PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
+    };
+    const searchSecretArgs: SecretArgs = {
+        name: "opensearchdashboards-auth",
+        labels: appLabels,
+        cluster: folioCluster,
+        namespace: folioNamespace,
+        data: openSearchSecretData,
+        dependsOn: [folioNamespace, folioSearchDomain]
+    };
+    const searchSecret = folio.deploy.secret(searchSecretArgs);
+
+    const searchHelmChartArgs: SearchHelmChartArgs = {
+        name: "folio-search-dashboard",
+        cluster: folioCluster,
+        namespace: folioNamespace,
+        domain: folioSearchDomain.domainEndpoint, // Have to interpolate because it could be undefined.
+        secret: searchSecretArgs,
+        dependsOn: [searchSecret, folioNamespace, folioSearchDomain]
+    };
+    search.deploy.dashboardHelmChart(searchHelmChartArgs);
+
     dbConnectSecretData.ELASTICSEARCH_URL = util.base64Encode(pulumi.interpolate`${folioSearchDomain}`);
 }
 
@@ -339,7 +347,7 @@ const s3CredentialSecretArgs: SecretArgs = {
     data: s3CredentialsDataExportSecretData,
     labels: appLabels,
     cluster: folioCluster,
-    namespace:  folioNamespace,
+    namespace: folioNamespace,
     dependsOn: [folioNamespace]
 };
 const s3CredentialsSecret = folio.deploy.secret(s3CredentialSecretArgs);
@@ -352,7 +360,7 @@ export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNames
 // This can run multiple times without causing trouble.
 var dbCreateJob = {} as k8s.batch.v1.Job;
 // Run a k8s job to create the FOLIO database if we're creating a new cluster from scratch.
- if (shouldCreateOwnDbCluster()) {
+if (shouldCreateOwnDbCluster()) {
     dbCreateJob = postgresql.deploy.databaseCreation("create-database",
         folioNamespace,
         folioCluster,

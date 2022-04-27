@@ -1,20 +1,38 @@
-
-import { Output, Resource } from "@pulumi/pulumi";
-
+import * as k8s from "@pulumi/kubernetes";
 import * as awsNative from "@pulumi/aws-native";
 import * as util from "./util";
+
+import { Output } from "@pulumi/pulumi";
 import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
+import { SearchHelmChartArgs } from "./interfaces/SearchHelmChartArgs";
 
 export module deploy {
-    export function domain(args: SearchDomainArgs):
-        Output<string> | undefined {
-        if (args.fd.hasSearch()) {
-            openSearchDomain(args).domainEndpoint;
-        }
-        return undefined;
+    export function dashboardHelmChart(args: SearchHelmChartArgs) {
+        const release = new k8s.helm.v3.Release(args.name,
+            {
+                namespace: args.namespace.id,
+                name: "opensearch-dashboards",
+                chart: "opensearch-dashboards",
+                version: "1.4.1",
+                repositoryOpts: { repo: "https://opensearch-project.github.io/helm-charts/" },
+                values: {
+                    opensearchHosts: args.domain,
+                    opensearchAccount: {
+                        secret: args.secret.name,
+                        keyPassphrase: {
+                            enabled: false
+                        }
+                    }
+                }
+            }, {
+            provider: args.cluster.provider,
+
+            dependsOn: args.dependsOn
+        });
+        return release;
     }
 
-    function openSearchDomain(args: SearchDomainArgs):
+    export function domain(args: SearchDomainArgs):
         awsNative.opensearchservice.Domain {
 
         const domain = new awsNative.opensearchservice.Domain(args.name, {
@@ -40,6 +58,10 @@ export module deploy {
                 dedicatedMasterEnabled: true, // Should "increase the stability of the cluster". See docs.
                 dedicatedMasterCount: 1,
                 dedicatedMasterType: args.dedicatedMasterType
+            },
+            // For other options see: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-opensearchservice-domain-ebsoptions.html
+            eBSOptions: {
+                volumeSize: args.volumeSize, // In GB.
             }
             // NOTE Not enabling zone awareness for now since it seems like it adds redundancy to avoid
             // downtime at the expense of complexity. This statement from the docs is worth considering:

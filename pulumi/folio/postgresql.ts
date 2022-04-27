@@ -1,10 +1,10 @@
-import { RdsClusterResources } from "./classes/RdsClusterResources";
-
 import * as pulumi from "@pulumi/pulumi";
-import { Output, Resource } from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import * as eks from "@pulumi/eks";
 import * as aws from "@pulumi/aws";
+
+import { RdsClusterResources } from "./classes/RdsClusterResources";
+import { Output, Resource } from "@pulumi/pulumi";
 
 export module deploy {
     export function helm(name: string,
