@@ -268,6 +268,8 @@ var dbConnectSecretData: DynamicSecret = {
 if (folioDeployment.hasSearch()) {
     // Create the opensearch domain that will be needed for mod-search. Like RDS above, this is
     // created outside of the k8s cluster so that it can be managed by AWS instead of by us.
+
+    // Resolve the promise so that we can pass in the array value for the security group IDs.
     vpcPrivateSubnetIds.then(output => {
         const searchArgs: SearchDomainArgs = {
             name: "folio-search",

@@ -388,6 +388,15 @@ The [pulumi troubleshooting doc](https://www.pulumi.com/docs/troubleshooting/#in
 
 Generally try not to rename too many resources at once or do massive changes to a stack all in one go. Instead if you know you're going to do this, consider doing a `pulumi destroy` and then `pulumi up` instead. Sometimes this may not be possible, but it may save you some headaches if you can.
 
+#### If all else fails
+If your stack becomes horribly corrupt (you find yourself editing an exported stack's JSON file and can't seem to get it it to pass integrity checking), your last resort is to manually delete the resources and delete the stack and start over. This is less horrible than it sounds since the AWS console handles clearing up the many dependencies for things like a VPC.
+
+Most of the resources that get deployed are tagged with the stack name as the `Environment` which helps to make sure you're not deleting production resources. The main things you want to get are:
+* The EKS Cluster in the EKS console. Make sure you're deleting the right one obviously, but this will neatly delete all the items associated with it.
+* The RDS instance.
+* The OpenSearch instance.
+* The VPC, which will prompt you to first delete the network interface. Follow this advice making sure to delete the one it tells you to delete.
+
 ### Authentication issues
 
 Errors like `SignatureDoesNotMatch: The request signature we calculated does not match the signature you provided` may be related to your authentication status with AWS. Verify that you are **not** using the `aws sts` temporary credentials.

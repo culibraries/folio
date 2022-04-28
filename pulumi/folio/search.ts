@@ -41,6 +41,8 @@ export module deploy {
             engineVersion: "OpenSearch_1.2", 
             vPCOptions: {
                 securityGroupIds: [args.vpcSecurityGroupId],
+                 // Even though pulumi calls for an array here, AWS only allows one subnet but
+                 // it still needs to be in array here, and it can't be wrapped in a Promise.
                 subnetIds: args.subnetIds.splice(0, 1)
             },
             // For these options see: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-opensearchservice-domain-clusterconfig.html
@@ -54,7 +56,7 @@ export module deploy {
                 instanceType: args.instanceType,
                 instanceCount: args.instanceCount,
                 // dedicatedMasterEnabled: true, // Should "increase the stability of the cluster". See docs.
-                // dedicatedMasterCount: 1,
+                // dedicatedMasterCount: 2, // Needs to be greater than 1 for CloudFormation to let it through.
                 // dedicatedMasterType: args.dedicatedMasterType
             },
             // For other options see: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-opensearchservice-domain-ebsoptions.html
@@ -64,7 +66,7 @@ export module deploy {
                 volumeType: "gp2"
                 // Docs here https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html don't wholly
                 // apply. The actual calls to the service error out without one of these values:
-                // gp2, io1, standard.
+                // gp2, io1, standard. io1 has tunable throughput.
             }
             // NOTE Not enabling zone awareness for now since it seems like it adds redundancy to avoid
             // downtime at the expense of complexity. This statement from the docs is worth considering:
