@@ -1,0 +1,26 @@
+encryptionsalt: v1:EtFJNYwF9Yc=:v1:XAR7MR5Q/NWEDHRY:Wqkrqko/QYoIvjb7Dm/ZhQCLZHhmhA==
+config:
+  aws-native:region: us-west-2
+  aws:region: us-west-2
+  folio:awsAccountId:
+    secure: v1:Fpng20Ir52+/jm2I:Mo+9V7ur6LMrAQoX92wUchMv8lajudq6tK7YkQ==
+  folio:db-admin-password:
+    secure: v1:Br9G2MhanvSsnGWi:+JN5yCpIz0yi6ur1hyHNNMlucbEHPhvjGPQ=
+  folio:db-admin-user:
+    secure: v1:H+H8KOXhTggEGBo/:7bDVEAMeFU4XHH/5+9wjcmRKPxEmi11n
+  folio:db-cluster-identifier: scratch-from-dev-cluster
+  folio:db-host:
+    secure: v1:9PMGC8uRwQXsTzBQ:/XDXdEr0bFlBcrWooaVtX/+FmlCBbFythRU=
+  folio:db-user-name:
+    secure: v1:Ky5r8oBoE2nhupfz:8oRe3Tt56sDNEA28fh76g1aG6DrD
+  folio:db-user-password:
+    secure: v1:NtsnuQxpn5fW1JyZ:YNkm9rlTBTpG/Lulrwax5oWcc/iiYpC7fK8CaRQFsDUBBgIY
+  folio:release: R3-2021
+  folio:search-password:
+    secure: v1:XpGnaEJW9rHclml8:7oUdvA+9PSug2dCQzRxQLj+7S292MBzjz39g01ZTZYU=
+  folio:search-user: search-admin
+  folio:stripes-container-tag: 2021.r3.1
+  folio:superuser-name:
+    secure: v1:pBGI0uTEsdNL7LLe:+clz0o+iAuP3DyPn5OZNdxLU3cu/ExyKREo=
+  folio:superuser-password:
+    secure: v1:+D3kPgLzRWWkVJJY:muvK3mhzuGRrd/Sgp8pgyLNsdQq3oGYwfHfHmbyik8mHCxp2+gFiL0G1KeiptPI=

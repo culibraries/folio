@@ -9,6 +9,6 @@ export interface SearchHelmChartArgs {
     cluster: eks.Cluster,
     namespace: Namespace,
     domain: Output<string>,
-    secret: SecretArgs,
+    secretArgs: SecretArgs,
     dependsOn?: Resource[]
 }

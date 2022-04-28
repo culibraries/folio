@@ -3,7 +3,7 @@ import * as k8s from "@pulumi/kubernetes";
 import * as eks from "@pulumi/eks";
 import * as aws from "@pulumi/aws";
 
-import { RdsClusterResources } from "./classes/RdsClusterResources";
+import { RdsClusterResources } from "./interfaces/RdsClusterResources";
 import { Output, Resource } from "@pulumi/pulumi";
 
 export module deploy {
@@ -100,7 +100,11 @@ export module deploy {
             dependsOn: cluster
         }));
 
-        return new RdsClusterResources(cluster, clusterInstances);
+        const resources: RdsClusterResources = {
+             cluster: cluster,
+            instances: clusterInstances
+        };
+        return resources;
     }
 
     export function databaseCreation(

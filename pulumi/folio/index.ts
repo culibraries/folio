@@ -13,7 +13,7 @@ import * as util from "./util";
 
 import { Resource } from "@pulumi/pulumi";
 import { FolioDeployment } from "./classes/FolioDeployment";
-import { RdsClusterResources } from "./classes/RdsClusterResources";
+import { RdsClusterResources } from "./interfaces/RdsClusterResources";
 import { DynamicSecret } from "./interfaces/DynamicSecret";
 import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
 import { NodeGroupArgs } from "./interfaces/NodeGroupArgs";
@@ -268,45 +268,47 @@ var dbConnectSecretData: DynamicSecret = {
 if (folioDeployment.hasSearch()) {
     // Create the opensearch domain that will be needed for mod-search. Like RDS above, this is
     // created outside of the k8s cluster so that it can be managed by AWS instead of by us.
-    const searchArgs: SearchDomainArgs = {
-        name: "folio-search",
-        fd: folioDeployment,
-        vpcSecurityGroupId: folioSecurityGroupId,
-        subnetIds: vpcPrivateSubnetIds,
-        instanceType: "m5.large.search",
-        instanceCount: 2,
-        dedicatedMasterType: "m6g.large.search", // Smaller than instances.
-        volumeSize: 200,
-        dependsOn: [folioSecurityGroup, folioVpc]
-    };
-    const folioSearchDomain = search.deploy.domain(searchArgs);
-    const openSearchDashboardUsername = config.requireSecret("search-user-name");
-    const openSearchDashboardPassword = config.requireSecret("search-password");
-    const openSearchSecretData: DynamicSecret = {
-        USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
-        PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
-    };
-    const searchSecretArgs: SecretArgs = {
-        name: "opensearchdashboards-auth",
-        labels: appLabels,
-        cluster: folioCluster,
-        namespace: folioNamespace,
-        data: openSearchSecretData,
-        dependsOn: [folioNamespace, folioSearchDomain]
-    };
-    const searchSecret = folio.deploy.secret(searchSecretArgs);
+    vpcPrivateSubnetIds.then(output => {
+        const searchArgs: SearchDomainArgs = {
+            name: "folio-search",
+            fd: folioDeployment,
+            vpcSecurityGroupId: folioSecurityGroupId,
+            subnetIds: output,
+            instanceType: "m5.large.search",
+            instanceCount: 2,
+            dedicatedMasterType: "m6g.large.search", // Smaller than instances.
+            volumeSize: 200,
+            dependsOn: [folioSecurityGroup, folioVpc]
+        };
+        const folioSearchDomain = search.deploy.domain(searchArgs);
 
-    const searchHelmChartArgs: SearchHelmChartArgs = {
-        name: "folio-search-dashboard",
-        cluster: folioCluster,
-        namespace: folioNamespace,
-        domain: folioSearchDomain.domainEndpoint, // Have to interpolate because it could be undefined.
-        secret: searchSecretArgs,
-        dependsOn: [searchSecret, folioNamespace, folioSearchDomain]
-    };
-    search.deploy.dashboardHelmChart(searchHelmChartArgs);
+        dbConnectSecretData.ELASTICSEARCH_URL = util.base64Encode(pulumi.interpolate`${folioSearchDomain}`);
 
-    dbConnectSecretData.ELASTICSEARCH_URL = util.base64Encode(pulumi.interpolate`${folioSearchDomain}`);
+        const openSearchDashboardUsername = config.requireSecret("search-user");
+        const openSearchDashboardPassword = config.requireSecret("search-password");
+        const openSearchSecretData: DynamicSecret = {
+            USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
+            PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
+        };
+        const searchSecretArgs: SecretArgs = {
+            name: "opensearchdashboards-auth",
+            labels: appLabels,
+            cluster: folioCluster,
+            namespace: folioNamespace,
+            data: openSearchSecretData,
+            dependsOn: [folioCluster, folioNamespace, folioSearchDomain]
+        };
+        const searchSecret = folio.deploy.secret(searchSecretArgs);
+        const searchDashboardHelmChartArgs: SearchHelmChartArgs = {
+            name: "folio-search-dashboard",
+            cluster: folioCluster,
+            namespace: folioNamespace,
+            domain: folioSearchDomain.domainEndpoint,
+            secretArgs: searchSecretArgs,
+            dependsOn: [folioCluster, folioNamespace, folioSearchDomain, searchSecret]
+        };
+        search.deploy.dashboardHelmChart(searchDashboardHelmChartArgs);
+    });
 }
 
 // Deploy the main secret which is used by modules to connect to the db. This
