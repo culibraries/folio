@@ -4,6 +4,7 @@ import * as util from "./util";
 
 import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
 import { SearchHelmChartArgs } from "./interfaces/SearchHelmChartArgs";
+import { Output } from "@pulumi/pulumi";
 
 export module deploy {
     export function dashboardHelmChart(args: SearchHelmChartArgs) {
@@ -38,12 +39,14 @@ export module deploy {
             domainName: util.getStackSearchIdentifier(),
             // https://docs.aws.amazon.com/opensearch-service/latest/developerguide/what-is.html#choosing-version
             // This can also be ElasticSearch_X.Y.
-            engineVersion: "OpenSearch_1.2", 
+            engineVersion: "OpenSearch_1.2",
             vPCOptions: {
                 securityGroupIds: [args.vpcSecurityGroupId],
                  // Even though pulumi calls for an array here, AWS only allows one subnet but
-                 // it still needs to be in array here, and it can't be wrapped in a Promise.
-                subnetIds: args.subnetIds.splice(0, 1)
+                 // it still needs to be in array here so we use splice to return a modified
+                 // array.
+                 // TODO Should we define subnet just for search?
+                subnetIds: args.subnetIds?.apply(v => v.splice(0, v.length - 1))
             },
             // For these options see: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-opensearchservice-domain-clusterconfig.html
             // Trying to choose some sensible defaults here for opensearch while
