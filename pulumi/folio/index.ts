@@ -305,6 +305,7 @@ if (folioDeployment.hasSearch()) {
     dbConnectSecretData.ELASTICSEARCH_PORT = Buffer.from(elasticSearchPort).toString("base64");
 
     const openSearchSecretData: DynamicSecret = {
+        // Key case matters here.
         username: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
         password: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`),
         cookie: util.base64Encode(pulumi.interpolate`${openSearchDashboardCookie}`),

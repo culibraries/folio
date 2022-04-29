@@ -1,10 +1,11 @@
 
-import { FolioModule } from "./classes/FolioModule";
 import * as k8s from "@pulumi/kubernetes";
 import * as input from "@pulumi/kubernetes/types/input";
 import * as eks from "@pulumi/eks";
+
 import { Resource } from "@pulumi/pulumi";
 import { SecretArgs } from "./interfaces/SecretArgs";
+import { FolioModule } from "./classes/FolioModule";
 
 export module prepare {
 
