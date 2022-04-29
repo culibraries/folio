@@ -4,7 +4,6 @@ import * as util from "./util";
 
 import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
 import { SearchHelmChartArgs } from "./interfaces/SearchHelmChartArgs";
-import { Output } from "@pulumi/pulumi";
 
 export module deploy {
     export function dashboardHelmChart(args: SearchHelmChartArgs) {
@@ -16,12 +15,9 @@ export module deploy {
                 version: "1.4.1",
                 repositoryOpts: { repo: "https://opensearch-project.github.io/helm-charts/" },
                 values: {
-                    opensearchHosts: args.domain,
+                    serverHost: args.domainUrl,
                     opensearchAccount: {
-                        secret: args.secretArgs.name,
-                        keyPassphrase: {
-                            enabled: false
-                        }
+                        secret: args.secretArgs.name
                     }
                 }
             }, {
@@ -42,11 +38,7 @@ export module deploy {
             engineVersion: "OpenSearch_1.2",
             vPCOptions: {
                 securityGroupIds: [args.vpcSecurityGroupId],
-                 // Even though pulumi calls for an array here, AWS only allows one subnet but
-                 // it still needs to be in array here so we use splice to return a modified
-                 // array.
-                 // TODO Should we define subnet just for search?
-                subnetIds: args.subnetIds?.apply(v => v.splice(0, v.length - 1))
+                subnetIds: args.privateSubnetIds
             },
             // For these options see: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-opensearchservice-domain-clusterconfig.html
             // Trying to choose some sensible defaults here for opensearch while
@@ -56,6 +48,10 @@ export module deploy {
             // Note that t2 and t3 don't support Auto-Tune.
             // FOLIO mod-search readme recommends m5.large for 7m records.
             clusterConfig: {
+                zoneAwarenessEnabled: true,
+                zoneAwarenessConfig: {
+                    availabilityZoneCount: 3
+                },
                 instanceType: args.instanceType,
                 instanceCount: args.instanceCount,
                 // dedicatedMasterEnabled: true, // Should "increase the stability of the cluster". See docs.
@@ -69,12 +65,9 @@ export module deploy {
                 volumeType: "gp2"
                 // Docs here https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html don't wholly
                 // apply. The actual calls to the service error out without one of these values:
-                // gp2, io1, standard. io1 has tunable throughput.
+                // gp2, io1, standard. io1 has tunable throughput so if we end up having performance issues on
+                // data import, this may be a place to address that.
             }
-            // NOTE Not enabling zone awareness for now since it seems like it adds redundancy to avoid
-            // downtime at the expense of complexity. This statement from the docs is worth considering:
-            // "Don't enable zone awareness if your cluster has no replica index shards or is a single-node
-            // cluster."
         }, {
             dependsOn: args.dependsOn
         });

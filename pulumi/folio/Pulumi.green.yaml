@@ -8,7 +8,6 @@ config:
     secure: v1:Br9G2MhanvSsnGWi:+JN5yCpIz0yi6ur1hyHNNMlucbEHPhvjGPQ=
   folio:db-admin-user:
     secure: v1:H+H8KOXhTggEGBo/:7bDVEAMeFU4XHH/5+9wjcmRKPxEmi11n
-  folio:db-cluster-identifier: scratch-from-dev-cluster
   folio:db-host:
     secure: v1:9PMGC8uRwQXsTzBQ:/XDXdEr0bFlBcrWooaVtX/+FmlCBbFythRU=
   folio:db-user-name:
@@ -16,6 +15,8 @@ config:
   folio:db-user-password:
     secure: v1:NtsnuQxpn5fW1JyZ:YNkm9rlTBTpG/Lulrwax5oWcc/iiYpC7fK8CaRQFsDUBBgIY
   folio:release: R3-2021
+  folio:search-cookie:
+    secure: v1:01tkUUOvJI5x8IrL:bguqXQjTU7+t0rpuzgVR+id4p7NukWd8YJsQdTEUJ4NRh7BQ4vE8N0nnb2iRazv1
   folio:search-password:
     secure: v1:XpGnaEJW9rHclml8:7oUdvA+9PSug2dCQzRxQLj+7S292MBzjz39g01ZTZYU=
   folio:search-user: search-admin

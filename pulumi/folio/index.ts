@@ -11,7 +11,7 @@ import * as search from "./search";
 import * as folio from "./folio";
 import * as util from "./util";
 
-import { Resource } from "@pulumi/pulumi";
+import { Output, Resource } from "@pulumi/pulumi";
 import { FolioDeployment } from "./classes/FolioDeployment";
 import { RdsClusterResources } from "./interfaces/RdsClusterResources";
 import { DynamicSecret } from "./interfaces/DynamicSecret";
@@ -265,6 +265,8 @@ var dbConnectSecretData: DynamicSecret = {
     OKAPI_HOST: Buffer.from("okapi").toString("base64"),
 }
 
+let searchDomainResource = <Resource>{};
+let searchDomainEndpoint = <Output<string>>{};
 if (folioDeployment.hasSearch()) {
     // Create the opensearch domain that will be needed for mod-search. Like RDS above, this is
     // created outside of the k8s cluster so that it can be managed by AWS instead of by us.
@@ -276,23 +278,36 @@ if (folioDeployment.hasSearch()) {
         fd: folioDeployment,
         vpcSecurityGroupId: folioSecurityGroupId,
         // The cluster code takes care of converting the subnet ids to outputs rather than
-        // promise-wrapped outputs.
-        subnetIds: folioCluster.core.privateSubnetIds,
+        // promise-wrapped outputs. Pulumi aws-native doesn't play nicely with promise-wrapped
+        // outputs, unlike the other Pulumi code we're using.
+        privateSubnetIds: folioCluster.core.privateSubnetIds,
         instanceType: "m5.large.search",
-        instanceCount: 2,
+        instanceCount: 3,
         dedicatedMasterType: "m6g.large.search", // Smaller than instances.
         volumeSize: 200,
-        dependsOn: [folioSecurityGroup, folioVpc]
+        dependsOn: [folioSecurityGroup, folioVpc, folioCluster]
     };
     const folioSearchDomain = search.deploy.domain(searchArgs);
-
-    dbConnectSecretData.ELASTICSEARCH_URL = util.base64Encode(pulumi.interpolate`${folioSearchDomain}`);
+    searchDomainResource = folioSearchDomain;
+    searchDomainEndpoint = folioSearchDomain.domainEndpoint;
 
     const openSearchDashboardUsername = config.requireSecret("search-user");
     const openSearchDashboardPassword = config.requireSecret("search-password");
+    const openSearchDashboardCookie = config.requireSecret("search-cookie");
+
+    const elasticSearchPort = "9200";
+    dbConnectSecretData.ELASTICSEARCH_URL =
+        util.base64Encode(pulumi.interpolate`${folioSearchDomain.domainEndpoint}:${elasticSearchPort}`);
+    dbConnectSecretData.ELASTICSEARCH_HOST =
+        util.base64Encode(pulumi.interpolate`${folioSearchDomain.domainEndpoint}`);
+    dbConnectSecretData.ELASTICSEARCH_USERNAME = util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`);
+    dbConnectSecretData.ELASTICSEARCH_PASSWORD = util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`);
+    dbConnectSecretData.ELASTICSEARCH_PORT = Buffer.from(elasticSearchPort).toString("base64");
+
     const openSearchSecretData: DynamicSecret = {
-        USERNAME: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
-        PASSWORD: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`)
+        username: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
+        password: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`),
+        cookie: util.base64Encode(pulumi.interpolate`${openSearchDashboardCookie}`),
     };
     const searchSecretArgs: SecretArgs = {
         name: "opensearchdashboards-auth",
@@ -307,12 +322,13 @@ if (folioDeployment.hasSearch()) {
         name: "folio-search-dashboard",
         cluster: folioCluster,
         namespace: folioNamespace,
-        domain: folioSearchDomain.domainEndpoint,
+        domainUrl: folioSearchDomain.domainEndpoint,
         secretArgs: searchSecretArgs,
         dependsOn: [folioCluster, folioNamespace, folioSearchDomain, searchSecret]
     };
     search.deploy.dashboardHelmChart(searchDashboardHelmChartArgs);
 }
+export const folioSearchDomainEndpoint = searchDomainEndpoint;
 
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
@@ -405,9 +421,15 @@ if (shouldCreateOwnDbCluster()) {
 const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModule,
     okapiCertArn, folioCluster, folioNamespace, okapiDependencies);
 
+// Build a list of dependencies that accounts for search, so that module installation
+// will wait until search domain install is finished.
+var moduleInstallDependencies: pulumi.Resource[] = [productionOkapiRelease, dbConnectSecret];
+if (folioDeployment.hasSearch()) {
+    moduleInstallDependencies.push(searchDomainResource);
+}
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(folioDeployment.modules, folioCluster, folioNamespace,
-    [productionOkapiRelease]);
+    moduleInstallDependencies);
 
 // These deploy with the name "platform-complete-dev or platform-complete for prod".
 // These tags and containers are the result of a scripted build process. See the readme in the

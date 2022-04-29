@@ -5,7 +5,7 @@ export interface SearchDomainArgs {
     name: string,
     fd: FolioDeployment,
     vpcSecurityGroupId: Output<string>,
-    subnetIds?: Output<string[]>,
+    privateSubnetIds?: Output<string[]>,
     instanceType: string,
     instanceCount: number,
     dedicatedMasterType: string,

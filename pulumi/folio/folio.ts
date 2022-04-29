@@ -211,12 +211,13 @@ export module deploy {
      * @param cluster A reference to the k8s cluster.
      * @param namespace A reference to the k8s namespace.
      * @param toDeploy The modules to deploy.
+     * @param dependsOn The dependencies.
      * @returns A list of the module resources.
      */
     export function modules(toDeploy: Array<FolioModule>,
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
-        okapiReleases: k8s.helm.v3.Release[]): Resource[] {
+        dependsOn: Resource[]): Resource[] {
 
         // Filter out okapi and the front-end modules. Okapi is deployed separately
         // prior to deploying the modules. Also, the front-end modules are only relevant
@@ -232,7 +233,7 @@ export module deploy {
             const values = getModuleValues(module);
 
             const moduleRelease =
-                deployHelmChart(module.name, module.name, cluster, namespace, values, okapiReleases);
+                deployHelmChart(module.name, module.name, cluster, namespace, values, dependsOn);
             moduleReleases.push(moduleRelease);
         }
 
