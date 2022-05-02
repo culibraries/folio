@@ -86,7 +86,7 @@ export module deploy {
                 fromPort: 5601,
                 toPort: 5601,
                 protocol: "tcp",
-                cidrBlocks: ["0.0.0.0/0"]
+                cidrBlocks: [clusterCidrBlock]
             }, {
                 description: "Allow inbound traffic on 9000 for edgeconexion",
                 fromPort: 9000,

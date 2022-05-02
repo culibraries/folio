@@ -354,7 +354,7 @@
     "action" : "disable"
   }, {
     "id" : "edge-patron-4.6.2",
-    "action" : "enable"
+    "action" : "disable"
   }, {
     "id" : "mod-rtac-3.1.1",
     "action" : "enable"

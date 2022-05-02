@@ -15,10 +15,10 @@ export module deploy {
                 version: "1.4.1",
                 repositoryOpts: { repo: "https://opensearch-project.github.io/helm-charts/" },
                 values: {
-                    service: {
-                        type: "LoadBalancer",
-                        port: "5601"
-                    },
+                    // service: {
+                    //     type: "ClusterIP",
+                    //     port: "5601"
+                    // },
                     serverHost: args.domainUrl,
                     opensearchAccount: {
                         secret: args.secretArgs.name
