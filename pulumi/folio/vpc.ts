@@ -82,12 +82,6 @@ export module deploy {
                 protocol: "tcp",
                 cidrBlocks: ["0.0.0.0/0"]
             }, {
-                description: "Allow inbound traffic to opensearch dashboard",
-                fromPort: 5601,
-                toPort: 5601,
-                protocol: "tcp",
-                cidrBlocks: [clusterCidrBlock]
-            }, {
                 description: "Allow inbound traffic on 9000 for edgeconexion",
                 fromPort: 9000,
                 toPort: 9000,
@@ -97,6 +91,18 @@ export module deploy {
                 description: "Allow inbound traffic on 5432 for postgres",
                 fromPort: 5432,
                 toPort: 5432,
+                protocol: "tcp",
+                cidrBlocks: [clusterCidrBlock]
+            }, {
+                description: "Allow inbound traffic on 9200 for opensearch",
+                fromPort: 9200,
+                toPort: 9200,
+                protocol: "tcp",
+                cidrBlocks: [clusterCidrBlock]
+            }, {
+                description: "Allow inbound traffic to opensearch dashboard",
+                fromPort: 5601,
+                toPort: 5601,
                 protocol: "tcp",
                 cidrBlocks: [clusterCidrBlock]
             }],

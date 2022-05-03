@@ -66,8 +66,10 @@ PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -d $DB_DATABASE -U $DB_USER
 To get the values for the above variables do:
 
 ```shell
-pulumi up --show-secrets
+pulumi config --show-secrets
 ```
+
+However, you should not have to set these vars. They should be present in the env of the debug-container since it uses a secret which has them
 
 To get a list of all tables in the database :
 
