@@ -292,17 +292,18 @@ if (folioDeployment.hasSearch()) {
         awsAccountId: config.requireSecret("awsAccountId"),
         awsRegion: awsConfig.require("region"),
         clusterCidrBlock: clusterCidrBlock,
+        tags: tags,
         dependsOn: [folioSecurityGroup, folioVpc, folioCluster]
     };
     const folioSearchDomain = search.deploy.domain(searchArgs);
     searchDomainResource = folioSearchDomain;
-    searchDomainEndpoint = folioSearchDomain.domainEndpoint;
+    searchDomainEndpoint = folioSearchDomain.endpoint;
 
     const elasticSearchPort = "443";
     dbConnectSecretData.ELASTICSEARCH_URL =
-        util.base64Encode(pulumi.interpolate`https://${folioSearchDomain.domainEndpoint}`); // mod-search readme says its depreciated but folio-helm chart requires it.
+        util.base64Encode(pulumi.interpolate`https://${folioSearchDomain.endpoint}`); // mod-search readme says its depreciated but folio-helm chart requires it.
     dbConnectSecretData.ELASTICSEARCH_HOST =
-        util.base64Encode(pulumi.interpolate`https://${folioSearchDomain.domainEndpoint}`); // mod-search readme says its depreciated but folio-helm chart requires it.
+        util.base64Encode(pulumi.interpolate`https://${folioSearchDomain.endpoint}`); // mod-search readme says its depreciated but folio-helm chart requires it.
     dbConnectSecretData.ELASTICSEARCH_USERNAME = util.base64Encode(pulumi.interpolate`${searchDashboardUsername}`);
     dbConnectSecretData.ELASTICSEARCH_PASSWORD = util.base64Encode(pulumi.interpolate`${searchDashboardPassword}`);
     dbConnectSecretData.ELASTICSEARCH_PORT = Buffer.from(elasticSearchPort).toString("base64"); // mod-search readme says its depreciated.

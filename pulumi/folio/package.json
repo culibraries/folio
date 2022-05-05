@@ -1,7 +1,7 @@
 {
     "name": "folio",
     "dependencies": {
-        "@pulumi/aws": "^4.38.0",
+        "@pulumi/aws": "^5.4.0",
         "@pulumi/aws-native": "^0.16.0",
         "@pulumi/awsx": "^0.33.0",
         "@pulumi/eks": "^0.37.1",

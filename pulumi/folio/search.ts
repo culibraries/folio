@@ -1,5 +1,7 @@
+import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import * as awsNative from "@pulumi/aws-native";
+import * as aws from "@pulumi/aws";
 import * as util from "./util";
 
 import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
@@ -28,8 +30,91 @@ export module deploy {
         return release;
     }
 
+    export function domain(args: SearchDomainArgs): aws.opensearch.Domain {
+        var searchDomainName = util.getStackSearchIdentifier();
+        var arn = args.awsAccountId.apply(accountId =>
+            `arn:aws:es:${args.awsRegion}:${accountId}}:domain/${searchDomainName}/*`);
+        var policyWithIpFilter =
+            `{
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": "*",
+                    "Action": "es:*",
+                    "Condition": {
+                        "IpAddress": {
+                            "aws:SourceIp": ["${args.clusterCidrBlock}"]
+                        }
+                    },
+                    "Resource": "${arn}"
+                }
+            ]
+        }`;
+        var unrestrictedPolicy =
+            `{
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "AWS": "*"
+                    },
+                    "Action": [
+                        "es:*"
+                    ],
+                    "Resource": "*"
+                }
+            ]
+        }`;
+        const example = new aws.opensearch.Domain(args.name, {
+            tags: args.tags,
+            domainName: util.getStackSearchIdentifier(),
+            engineVersion: "OpenSearch_1.2",
+            clusterConfig: {
+                zoneAwarenessEnabled: true,
+                zoneAwarenessConfig: {
+                    availabilityZoneCount: 3
+                },
+                instanceType: args.instanceType,
+                instanceCount: args.instanceCount
+            },
+            ebsOptions: {
+                ebsEnabled: true,
+                volumeSize: args.volumeSize, // In GB.
+                volumeType: "gp2"
+                // Docs here https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html don't wholly
+                // apply. The actual calls to the service error out without one of these values:
+                // gp2, io1, standard. io1 has tunable throughput so if we end up having performance issues on
+                // data import, this may be a place to address that.
+            },
+            advancedSecurityOptions: {
+                enabled: true,
+                internalUserDatabaseEnabled: true,
+                masterUserOptions: {
+                    masterUserName: args.masterUserUsername,
+                    masterUserPassword: args.masterUserPassword
+                }
+            },
+            nodeToNodeEncryption: {
+                enabled: true
+            },
+            encryptAtRest: {
+                enabled: true
+            },
+            domainEndpointOptions: {
+                enforceHttps: true,
+                tlsSecurityPolicy: "Policy-Min-TLS-1-2-2019-07"
+            },
+            accessPolicies: policyWithIpFilter.replace(/(\r\n|\n|\r|\s)/gm, ""),
+        }, {
+            dependsOn: args.dependsOn
+        });
+        return example;
+    }
+
     // The opensearchservice is defined here: https://www.pulumi.com/registry/packages/aws-native/api-docs/opensearchservice/
-    export function domain(args: SearchDomainArgs):
+    export function awsNativeDomain(args: SearchDomainArgs):
         awsNative.opensearchservice.Domain {
         const searchDomainName = util.getStackSearchIdentifier();
         const domain = new awsNative.opensearchservice.Domain(args.name, {
@@ -84,13 +169,13 @@ export module deploy {
                         "Action": [
                             "es:*"
                         ],
-                        // "Condition": {
-                        //     "IpAddress": {
-                        //       "aws:SourceIp": [
-                        //         args.clusterCidrBlock
-                        //       ]
-                        //     }
-                        //   },
+                        "Condition": {
+                            "IpAddress": {
+                                "aws:SourceIp": [
+                                    args.clusterCidrBlock
+                                ]
+                            }
+                        },
                         // This constructs the domain ARN.
                         // "Resource": args.awsAccountId.apply(accountId =>
                         //     `arn:aws:es:${args.awsRegion}:${accountId}}:domain/${searchDomainName}/*`)
@@ -118,8 +203,8 @@ export module deploy {
         }, {
             dependsOn: args.dependsOn,
 
-             // NOTE This apparently does NOT force a delete/replace. The only way I'm able to delete/replace is
-             // by commenting the resource in and out.
+            // NOTE This apparently does NOT force a delete/replace. The only way I'm able to delete/replace is
+            // by commenting the resource in and out.
             deleteBeforeReplace: true,
         });
 

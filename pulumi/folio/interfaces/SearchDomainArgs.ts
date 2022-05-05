@@ -15,5 +15,6 @@ export interface SearchDomainArgs {
     awsAccountId: Output<string>,
     awsRegion: string,
     clusterCidrBlock: string,
+    tags: any,
     dependsOn?: Resource[]
 }
