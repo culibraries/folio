@@ -31,6 +31,7 @@ const tags = {
 
 // Create an object to represent the FOLIO deployment.
 const config = new pulumi.Config();
+const awsConfig = new pulumi.Config("aws");
 const releaseFilePath = `./deployments/${config.require("release")}.json`;
 const tenant = "cubl";
 const okapiUrl = "http://okapi:9130";
@@ -268,11 +269,12 @@ var dbConnectSecretData: DynamicSecret = {
 let searchDomainResource = <Resource>{};
 let searchDomainEndpoint = <Output<string>>{};
 if (folioDeployment.hasSearch()) {
+    const searchDashboardCookie = config.requireSecret("search-cookie");
+    const searchDashboardUsername = config.requireSecret("search-user");
+    const searchDashboardPassword = config.requireSecret("search-password");
+
     // Create the opensearch domain that will be needed for mod-search. Like RDS above, this is
     // created outside of the k8s cluster so that it can be managed by AWS instead of by us.
-
-    // Resolve the promise so that we can pass in the array value for the security group IDs.
-    // TODO Could also do: folioVpc.getSubnetsIds("private").
     const searchArgs: SearchDomainArgs = {
         name: "folio-search",
         fd: folioDeployment,
@@ -284,31 +286,32 @@ if (folioDeployment.hasSearch()) {
         instanceType: "m5.large.search",
         instanceCount: 3,
         dedicatedMasterType: "m6g.large.search", // Smaller than instances.
-        volumeSize: 200,
+        volumeSize: 20,
+        masterUserUsername: searchDashboardUsername,
+        masterUserPassword: searchDashboardPassword,
+        awsAccountId: config.requireSecret("awsAccountId"),
+        awsRegion: awsConfig.require("region"),
+        clusterCidrBlock: clusterCidrBlock,
         dependsOn: [folioSecurityGroup, folioVpc, folioCluster]
     };
     const folioSearchDomain = search.deploy.domain(searchArgs);
     searchDomainResource = folioSearchDomain;
     searchDomainEndpoint = folioSearchDomain.domainEndpoint;
 
-    const openSearchDashboardUsername = config.requireSecret("search-user");
-    const openSearchDashboardPassword = config.requireSecret("search-password");
-    const openSearchDashboardCookie = config.requireSecret("search-cookie");
-
-    const elasticSearchPort = "9200";
+    const elasticSearchPort = "443";
     dbConnectSecretData.ELASTICSEARCH_URL =
-        util.base64Encode(pulumi.interpolate`${folioSearchDomain.domainEndpoint}:${elasticSearchPort}`);
+        util.base64Encode(pulumi.interpolate`https://${folioSearchDomain.domainEndpoint}`); // mod-search readme says its depreciated but folio-helm chart requires it.
     dbConnectSecretData.ELASTICSEARCH_HOST =
-        util.base64Encode(pulumi.interpolate`${folioSearchDomain.domainEndpoint}`);
-    dbConnectSecretData.ELASTICSEARCH_USERNAME = util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`);
-    dbConnectSecretData.ELASTICSEARCH_PASSWORD = util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`);
-    dbConnectSecretData.ELASTICSEARCH_PORT = Buffer.from(elasticSearchPort).toString("base64");
+        util.base64Encode(pulumi.interpolate`https://${folioSearchDomain.domainEndpoint}`); // mod-search readme says its depreciated but folio-helm chart requires it.
+    dbConnectSecretData.ELASTICSEARCH_USERNAME = util.base64Encode(pulumi.interpolate`${searchDashboardUsername}`);
+    dbConnectSecretData.ELASTICSEARCH_PASSWORD = util.base64Encode(pulumi.interpolate`${searchDashboardPassword}`);
+    dbConnectSecretData.ELASTICSEARCH_PORT = Buffer.from(elasticSearchPort).toString("base64"); // mod-search readme says its depreciated.
 
     const openSearchSecretData: DynamicSecret = {
         // Key case matters here.
-        username: util.base64Encode(pulumi.interpolate`${openSearchDashboardUsername}`),
-        password: util.base64Encode(pulumi.interpolate`${openSearchDashboardPassword}`),
-        cookie: util.base64Encode(pulumi.interpolate`${openSearchDashboardCookie}`),
+        username: util.base64Encode(pulumi.interpolate`${searchDashboardUsername}`),
+        password: util.base64Encode(pulumi.interpolate`${searchDashboardPassword}`),
+        cookie: util.base64Encode(pulumi.interpolate`${searchDashboardCookie}`),
     };
     const searchSecretArgs: SecretArgs = {
         name: "opensearchdashboards-auth",
@@ -316,18 +319,20 @@ if (folioDeployment.hasSearch()) {
         cluster: folioCluster,
         namespace: folioNamespace,
         data: openSearchSecretData,
-        dependsOn: [folioCluster, folioNamespace, folioSearchDomain]
+        //dependsOn: [folioCluster, folioNamespace, folioSearchDomain]
+        dependsOn: [folioCluster, folioNamespace]
     };
-    const searchSecret = folio.deploy.secret(searchSecretArgs);
-    const searchDashboardHelmChartArgs: SearchHelmChartArgs = {
-        name: "folio-search-dashboard",
-        cluster: folioCluster,
-        namespace: folioNamespace,
-        domainUrl: folioSearchDomain.domainEndpoint,
-        secretArgs: searchSecretArgs,
-        dependsOn: [folioCluster, folioNamespace, folioSearchDomain, searchSecret]
-    };
-    search.deploy.dashboardHelmChart(searchDashboardHelmChartArgs);
+    folio.deploy.secret(searchSecretArgs);
+    // const searchSecret = folio.deploy.secret(searchSecretArgs);
+    // const searchDashboardHelmChartArgs: SearchHelmChartArgs = {
+    //     name: "folio-search-dashboard",
+    //     cluster: folioCluster,
+    //     namespace: folioNamespace,
+    //     domainUrl: folioSearchDomain.domainEndpoint,
+    //     secretArgs: searchSecretArgs,
+    //     dependsOn: [folioCluster, folioNamespace, folioSearchDomain, searchSecret]
+    // };
+    // search.deploy.dashboardHelmChart(searchDashboardHelmChartArgs);
 }
 export const folioSearchDomainEndpoint = searchDomainEndpoint;
 
@@ -426,6 +431,7 @@ const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModu
 // will wait until search domain install is finished.
 var moduleInstallDependencies: pulumi.Resource[] = [productionOkapiRelease, dbConnectSecret];
 if (folioDeployment.hasSearch()) {
+    // TODO Comment in or out when deleting search domains.
     moduleInstallDependencies.push(searchDomainResource);
 }
 // Deploy the rest of the modules that we want. This excludes okapi.

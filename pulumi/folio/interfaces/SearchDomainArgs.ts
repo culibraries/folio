@@ -10,5 +10,10 @@ export interface SearchDomainArgs {
     instanceCount: number,
     dedicatedMasterType: string,
     volumeSize: number,
+    masterUserUsername: Output<string>,
+    masterUserPassword: Output<string>,
+    awsAccountId: Output<string>,
+    awsRegion: string,
+    clusterCidrBlock: string,
     dependsOn?: Resource[]
 }

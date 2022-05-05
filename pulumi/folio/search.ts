@@ -15,10 +15,6 @@ export module deploy {
                 version: "1.4.1",
                 repositoryOpts: { repo: "https://opensearch-project.github.io/helm-charts/" },
                 values: {
-                    // service: {
-                    //     type: "ClusterIP",
-                    //     port: "5601"
-                    // },
                     serverHost: args.domainUrl,
                     opensearchAccount: {
                         secret: args.secretArgs.name
@@ -32,18 +28,20 @@ export module deploy {
         return release;
     }
 
+    // The opensearchservice is defined here: https://www.pulumi.com/registry/packages/aws-native/api-docs/opensearchservice/
     export function domain(args: SearchDomainArgs):
         awsNative.opensearchservice.Domain {
+        const searchDomainName = util.getStackSearchIdentifier();
         const domain = new awsNative.opensearchservice.Domain(args.name, {
             // https://docs.aws.amazon.com/opensearch-service/latest/developerguide/configuration-api.html#configuration-api-datatypes-domainname
             domainName: util.getStackSearchIdentifier(),
             // https://docs.aws.amazon.com/opensearch-service/latest/developerguide/what-is.html#choosing-version
             // This can also be ElasticSearch_X.Y.
             engineVersion: "OpenSearch_1.2",
-            vPCOptions: {
-                securityGroupIds: [args.vpcSecurityGroupId],
-                subnetIds: args.privateSubnetIds
-            },
+            // vPCOptions: {
+            //     securityGroupIds: [args.vpcSecurityGroupId],
+            //     subnetIds: args.privateSubnetIds
+            // },
             // For these options see: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-opensearchservice-domain-clusterconfig.html
             // Trying to choose some sensible defaults here for opensearch while
             // making different size deployments configurable.
@@ -71,9 +69,58 @@ export module deploy {
                 // apply. The actual calls to the service error out without one of these values:
                 // gp2, io1, standard. io1 has tunable throughput so if we end up having performance issues on
                 // data import, this may be a place to address that.
+            },
+            accessPolicies: {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            // "AWS": [
+                            //     args.awsAccountId
+                            // ]
+                            "AWS": "*"
+                        },
+                        "Action": [
+                            "es:*"
+                        ],
+                        // "Condition": {
+                        //     "IpAddress": {
+                        //       "aws:SourceIp": [
+                        //         args.clusterCidrBlock
+                        //       ]
+                        //     }
+                        //   },
+                        // This constructs the domain ARN.
+                        // "Resource": args.awsAccountId.apply(accountId =>
+                        //     `arn:aws:es:${args.awsRegion}:${accountId}}:domain/${searchDomainName}/*`)
+                        "Resource": "*"
+                    }
+                ]
+            },
+            advancedSecurityOptions: {
+                enabled: true,
+                internalUserDatabaseEnabled: true,
+                masterUserOptions: {
+                    masterUserName: args.masterUserUsername,
+                    masterUserPassword: args.masterUserPassword
+                }
+            },
+            nodeToNodeEncryptionOptions: {
+                enabled: true
+            },
+            encryptionAtRestOptions: {
+                enabled: true
+            },
+            domainEndpointOptions: {
+                enforceHTTPS: true
             }
         }, {
-            dependsOn: args.dependsOn
+            dependsOn: args.dependsOn,
+
+             // NOTE This apparently does NOT force a delete/replace. The only way I'm able to delete/replace is
+             // by commenting the resource in and out.
+            deleteBeforeReplace: true,
         });
 
         return domain;
