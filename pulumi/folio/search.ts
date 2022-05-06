@@ -31,27 +31,15 @@ export module deploy {
     }
 
     export function domain(args: SearchDomainArgs): aws.opensearch.Domain {
-        var searchDomainName = util.getStackSearchIdentifier();
-        var arn = args.awsAccountId.apply(accountId =>
-            `arn:aws:es:${args.awsRegion}:${accountId}}:domain/${searchDomainName}/*`);
-        var policyWithIpFilter =
-            `{
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": "*",
-                    "Action": "es:*",
-                    "Condition": {
-                        "IpAddress": {
-                            "aws:SourceIp": ["${args.clusterCidrBlock}"]
-                        }
-                    },
-                    "Resource": "${arn}"
-                }
-            ]
-        }`;
-        var unrestrictedPolicy =
+        const stackId = util.getStackSearchIdentifier();
+        const currentRegion = aws.getRegion({});
+        const currentCallerIdentity = aws.getCallerIdentity({});
+        // var arn = args.awsAccountId.apply(accountId =>
+        //     `arn:aws:es:${args.awsRegion}:${accountId}}:domain/${stackId}/*`); // This could be added to Resource but sadly it makes no difference.
+
+        // // Create the simplest possible policy with unrestricted access. Basic auth
+        // // is still in effect (aka 'fine grained access control'), but that's all that is in effect.
+        const unrestrictedPolicy =
             `{
             "Version": "2012-10-17",
             "Statement": [
@@ -67,9 +55,48 @@ export module deploy {
                 }
             ]
         }`;
-        const example = new aws.opensearch.Domain(args.name, {
+
+        // // Create a somewhat more complex and restrictive policy. The only problem is that
+        // // this policy doesn't allow in-cluster access even though I pass in the cluster cidr
+        // // block. It must be that VPC deployment is considered the way to limit to a set of ips
+        // // should those IPs be created in a eks cluster.
+        // var policyWithIpFilter =
+        //     `{
+        //     "Version": "2012-10-17",
+        //     "Statement": [
+        //         {
+        //             "Effect": "Allow",
+        //             "Principal": {
+        //                 "AWS": "*"
+        //             },
+        //             "Action": [
+        //                 "es:*"
+        //             ],
+        //             "Condition": {
+        //                 "IpAddress": {
+        //                     "aws:SourceIp": ["${args.clusterCidrBlock}"]
+        //                 }
+        //             },
+        //             "Resource": "*
+        //         }
+        //     ]
+        // }`.replace(/(\r\n|\n|\r|\s)/gm, ""); // AWS complains that it contains a \n char. So we remove everything.
+
+        const domain = new aws.opensearch.Domain(args.name, {
             tags: args.tags,
-            domainName: util.getStackSearchIdentifier(),
+            // accessPolicies: Promise.all([currentRegion, currentCallerIdentity]).then(([currentRegion, currentCallerIdentity]) => `{
+            //     "Version": "2012-10-17",
+            //     "Statement": [
+            //         {
+            //             "Action": "es:*",
+            //             "Principal": "*",
+            //             "Effect": "Allow",
+            //             "Resource": "arn:aws:es:${currentRegion.name}:${currentCallerIdentity.accountId}:domain/${stackId}/*"
+            //         }
+            //     ]
+            // }`),
+            accessPolicies: unrestrictedPolicy,
+            domainName: stackId,
             engineVersion: "OpenSearch_1.2",
             clusterConfig: {
                 zoneAwarenessEnabled: true,
@@ -106,11 +133,61 @@ export module deploy {
                 enforceHttps: true,
                 tlsSecurityPolicy: "Policy-Min-TLS-1-2-2019-07"
             },
-            accessPolicies: policyWithIpFilter.replace(/(\r\n|\n|\r|\s)/gm, ""),
         }, {
             dependsOn: args.dependsOn
         });
-        return example;
+        return domain;
+    }
+
+    export function domainVpc(args: SearchDomainArgs): aws.opensearch.Domain {
+        //const stackId = util.getStackSearchIdentifier();
+        const stackId = "search-green-2";
+        const currentRegion = aws.getRegion({});
+        const currentCallerIdentity = aws.getCallerIdentity({});
+        const domain:aws.opensearch.Domain = new aws.opensearch.Domain(args.name, {
+            domainName: stackId,
+            tags: args.tags,
+            engineVersion: "OpenSearch_1.2",
+            clusterConfig: {
+                zoneAwarenessEnabled: true,
+                zoneAwarenessConfig: {
+                    availabilityZoneCount: 3
+                },
+                instanceType: args.instanceType,
+                instanceCount: args.instanceCount
+            },
+            vpcOptions: {
+                subnetIds: args.privateSubnetIds,
+                securityGroupIds: [args.vpcSecurityGroupId],
+             },
+            advancedOptions: {
+                "rest.action.multi.allow_explicit_index": "true",
+            },
+            ebsOptions: {
+                ebsEnabled: true,
+                volumeSize: args.volumeSize, // In GB.
+                volumeType: "gp2"
+                // Docs here https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volume-types.html don't wholly
+                // apply. The actual calls to the service error out without one of these values:
+                // gp2, io1, standard. io1 has tunable throughput so if we end up having performance issues on
+                // data import, this may be a place to address that.
+            },
+            accessPolicies: Promise.all([currentRegion, currentCallerIdentity]).then(([currentRegion, currentCallerIdentity]) => `{
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Action": "es:*",
+                    "Principal": "*",
+                    "Effect": "Allow",
+                    "Resource": "arn:aws:es:${currentRegion.name}:${currentCallerIdentity.accountId}:domain/${domain}/*"
+                }
+            ]
+        }`)
+        }, {
+            dependsOn: args.dependsOn,
+        });
+
+        return domain;
     }
 
     // The opensearchservice is defined here: https://www.pulumi.com/registry/packages/aws-native/api-docs/opensearchservice/
