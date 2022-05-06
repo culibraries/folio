@@ -297,33 +297,9 @@ if (folioDeployment.hasSearch()) {
         tags: tags,
         dependsOn: [folioSecurityGroup, folioVpc, folioCluster]
     };
-    const searchArgs2: SearchDomainArgs = {
-        name: "folio-search-2",
-        fd: folioDeployment,
-        vpcSecurityGroupId: folioSecurityGroupId,
-        // The cluster code takes care of converting the subnet ids to outputs rather than
-        // promise-wrapped outputs. Pulumi aws-native doesn't play nicely with promise-wrapped
-        // outputs, unlike the other Pulumi code we're using.
-        privateSubnetIds: folioCluster.core.privateSubnetIds,
-        instanceType: "m5.large.search",
-        instanceCount: 3,
-        dedicatedMasterType: "m6g.large.search", // Smaller than instances.
-        volumeSize: 20,
-        masterUserUsername: searchUsername,
-        masterUserPassword: searchPassword,
-        awsAccountId: config.requireSecret("awsAccountId"),
-        awsRegion: awsConfig.require("region"),
-        clusterCidrBlock: clusterCidrBlock,
-        tags: tags,
-        dependsOn: [folioSecurityGroup, folioVpc, folioCluster]
-    };
     const folioSearchDomain = search.deploy.domain(searchArgs);
     searchDomainResource = folioSearchDomain;
     searchDomainEndpoint = folioSearchDomain.endpoint;
-    // TODO Testing
-    const folioSearchDomain_temp = search.deploy.domainVpc(searchArgs2);
-    searchDomainResource_temp = folioSearchDomain_temp;
-    searchDomainEndpoint_temp = folioSearchDomain_temp.endpoint;
 
     const elasticSearchPort = "443";
     dbConnectSecretData.ELASTICSEARCH_URL =
@@ -432,17 +408,17 @@ if (shouldCreateOwnDbCluster()) {
 const okapiModule = util.getModuleByName("okapi", folioDeployment.modules);
 
 // The cublctaCertArn is a wildcard certificate so there's only one ARN. This is *.cublcta.com.
-const cublCtaCertArn: string =
+export const cublCtaCertArn: string =
     "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-0b6e-4698-9c31-504c84a979ba";
 // folio.colorado.edu
-const stripesProdCertArn: string =
+export const stripesProdCertArn: string =
     "arn:aws:acm:us-west-2:735677975035:certificate/0e57ac8a-4fd5-4dbe-b8ac-d8f486798293";
 // folio.colorado.edu
 const okapiProdCertArn: string = "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
 
 // Until we have a better way to cut over between environments, we need to let the stack
 // control which which cert gets bound to the okapi service.
-const okapiCertArn: string = pulumi.getStack() === "scratch" ? cublCtaCertArn : okapiProdCertArn;
+export const okapiCertArn: string = util.usesProdData(pulumi.getStack()) ? okapiProdCertArn : cublCtaCertArn;
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 var okapiDependencies: pulumi.Resource[] = [dbConnectSecret, s3CredentialsDataExportSecret,
@@ -460,7 +436,7 @@ const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModu
 var moduleInstallDependencies: pulumi.Resource[] = [productionOkapiRelease, dbConnectSecret];
 if (folioDeployment.hasSearch()) {
     // Comment in or out when deleting search domains to avoid an error.
-    //moduleInstallDependencies.push(searchDomainResource);
+    moduleInstallDependencies.push(searchDomainResource);
 }
 // Deploy the rest of the modules that we want. This excludes okapi.
 const moduleReleases = folio.deploy.modules(folioDeployment.modules, folioCluster, folioNamespace,

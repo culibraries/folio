@@ -51,7 +51,7 @@ export function getStackSearchIdentifier() {
     return id + "-" + stack;
 }
 
-function usesProdData(stack: string) {
+export function usesProdData(stack: string) {
     // Add or remove from this list depending on needs.
     // NOTE For now only the "dev" stack has non-qualified data sources
     // (data sources that don't have a suffix). This allows for multiple stacks

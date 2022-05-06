@@ -93,7 +93,9 @@ export module deploy {
                 toPort: 5432,
                 protocol: "tcp",
                 cidrBlocks: [clusterCidrBlock]
-            }, {
+            },
+            // TODO These can be removed as they are not in scope since we're deploying os out of vpc.
+            {
                 description: "Allow inbound traffic on 9200 for opensearch",
                 fromPort: 9200,
                 toPort: 9200,
