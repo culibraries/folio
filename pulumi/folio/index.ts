@@ -32,6 +32,7 @@ const tags = {
 // Create an object to represent the FOLIO deployment.
 const config = new pulumi.Config();
 const awsConfig = new pulumi.Config("aws");
+const awsRegion = awsConfig.require("region");
 const releaseFilePath = `./deployments/${config.require("release")}.json`;
 const tenant = "cubl";
 const okapiUrl = "http://okapi:9130";
@@ -268,7 +269,6 @@ var dbConnectSecretData: DynamicSecret = {
 
 let searchDomainResource = <Resource>{};
 let searchDomainEndpoint = <Output<string>>{};
-let searchDomainResource_temp = <Resource>{};
 let searchDomainEndpoint_temp = <Output<string>>{};
 if (folioDeployment.hasSearch()) {
     const searchDashboardCookie = config.requireSecret("search-cookie");
@@ -353,14 +353,20 @@ const dbSecretArgs: SecretArgs = {
 const dbConnectSecret = folio.deploy.secret(dbSecretArgs);
 
 // Bucket required by mod-data-export, which is required by mod-inventory.
-// TODO Create this bucket in pulumi.
+// TODO Create this bucket in pulumi. Currently these have been created manually.
+// TODO Create the access policy in pulumi. Both of these resources are tied to the stack.
+// The user that provides the access key and access key id is not tied to the stack
+// and travels between all stacks. This user must be created manually.
 const dataExportBucket = `folio-data-export-${pulumi.getStack()}`;
+const dataExportSecretAccessKey = config.requireSecret("data-export-user-secretaccesskey");
+const dataExportAccessKeyId = config.requireSecret("data-export-user-accesskeyid");
+
 var s3CredentialsDataExportSecretData: DynamicSecret = {
-    AWS_ACCESS_KEY_ID: Buffer.from("TODO").toString("base64"),
+    AWS_SECRET_ACCESS_KEY: util.base64Encode(pulumi.interpolate`${dataExportSecretAccessKey}`),
+    AWS_ACCESS_KEY_ID: util.base64Encode(pulumi.interpolate`${dataExportAccessKeyId}`),
     AWS_BUCKET: Buffer.from(dataExportBucket).toString("base64"),
-    AWS_REGION: Buffer.from("TODO").toString("base64"),
-    AWS_SECRET_ACCESS_KEY: Buffer.from("TODO").toString("base64"),
-    AWS_URL: Buffer.from("https://s3.amazonaws.com").toString("base64")
+    AWS_REGION: util.base64Encode(pulumi.interpolate`${awsRegion}`),
+    AWS_URL: Buffer.from(`https://${dataExportBucket}.s3.amazonaws.com`).toString("base64")
 };
 const s3SecretArgs: SecretArgs = {
     name: "s3-credentials-data-export",
