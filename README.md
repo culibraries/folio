@@ -11,7 +11,7 @@ Steps in more detail:
 1. Optionally create a new Pulumi stack for the new deployment if needed. Potentially set new config variables in pulumi for the stack.
 1. Review the FOLIO release materials in the `deployments` directory. Are you going to create a new release or use an existing one?
 1. Run `pulumi up` from the pulumi directory. This will deploy everything in the entire infrastructure from scratch, including all AWS resources. Also deploys an empty AWS RDS database cluster and all the FOLIO modules. Finally it pushes out the FOLIO module descriptors to okapi. At this point you can export the kubeconfig file from the pulumi stack and use it to connect to the cluster to see the resources there. Try `kubectl get pods` or `kubectl logs <okapi pod name> -f` to follow the okapi logs.
-1. Port forward the okapi pod to a port on your local machine: `kubectl -n <folio namespacce> port-forward 9000:9130`.
+1. Port forward the okapi pod to a port on your local machine: `kubectl -n <folio namespace> port-forward 9000:9130`.
 1. Still on your local machine, run the `create-tenant.sh` script. This will create one tenant based on the name in the script.
 1. Review and run the `register-modules.sh` script using the port on localhost for the okapi url. Make sure to adjust the parameters to your needs. This will register the modules in the deployment to the tenant. You should now be able to see all of the modules that you have registered to the tenant by visiting `http://localhost:9000/_/proxy/tenants/cubl/modules`.
 1. Create an entry in Route 53 to point to the okapi service's DNS address. Get the service dns by doing `get services` in the k8s cluster. This will allow for the next step (bootstrapping superuser) to work.

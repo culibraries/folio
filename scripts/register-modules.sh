@@ -24,6 +24,7 @@ H_JSON="-HContent-type:application/json"
 # if they are already installed, which mostly we don't want here.
 
 echo "Selecting only enabled modules for deployment: $DEPLOYMENT"
+rm release.json
 cat ../pulumi/folio/deployments/$DEPLOYMENT.json | jq '[.[] | select(.action == "enable")]' > release.json
 echo "enabling modules: $(cat release.json)"
 
