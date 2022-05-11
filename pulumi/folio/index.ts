@@ -62,15 +62,6 @@ export const folioSecurityGroupId = folioSecurityGroup.id;
 export const vpcPrivateSubnetIds = folioVpc.privateSubnetIds;
 export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
 
-// Create the database resources that are needed in our VPC. At minimum we need a
-// database subnet group, and a cluster reference.
-export const folioDbPort = 5432;
-export const dbSubnetGroupName = "folio-db-subnet";
-const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
-    tags: { "Name": dbSubnetGroupName, ...tags },
-    subnetIds: vpcPrivateSubnetIds
-});
-
 /**
  * The pulumi configuration key which points to the database cluster this
  * stack should use. When the stack has this key it means that a decision has been made
@@ -96,12 +87,22 @@ const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
 const dbUserPassword = config.requireSecret("db-user-password");
 
+export const folioDbPort = 5432;
+
 // Create the RDS resources, if they are needed. Note that on the first run a stack
 // always needs a RDS cluster to be deployed, otherwise subsequent steps won't work.
 // But once a full stack is deployed, the RDS cluster can be swapped out by adding
 // a special key in the configuration which will perform the swap on subsequent updates.
 let rdsClusterResources = {} as RdsClusterResources;
 if (shouldCreateOwnDbCluster()) {
+    // Create the database resources that are needed in our VPC. At minimum we need a
+    // database subnet group, and a cluster reference.
+    const dbSubnetGroupName = "folio-db-subnet";
+    const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
+        tags: { "Name": dbSubnetGroupName, ...tags },
+        subnetIds: vpcPrivateSubnetIds
+    });
+    // Create the db cluster itself.
     const clusterName = util.getStackDbIdentifier();
     const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
     const pgClusterId = `${clusterName}-cluster`;
@@ -138,7 +139,7 @@ if (shouldCreateOwnDbCluster()) {
 } else {
     // The interpolate call is needed to convert the literal to the Output type.
     dbClusterIdentifier = pulumi.interpolate`${config.require(dbClusterConfigKey)}`;
-    dbResourceDependencies.concat([folioVpc, dbSubnetGroup]);
+    dbResourceDependencies.concat([folioVpc]);
 }
 export const customEndpointName = pulumi.getStack();
 const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
