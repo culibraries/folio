@@ -4,7 +4,9 @@ import * as eks from "@pulumi/eks";
 import * as aws from "@pulumi/aws";
 
 import { RdsClusterResources } from "./interfaces/RdsClusterResources";
+import { RdsArgs } from "./interfaces/RdsArgs";
 import { Output, Resource } from "@pulumi/pulumi";
+
 
 export module deploy {
     export function helm(name: string,
@@ -34,49 +36,32 @@ export module deploy {
         return instance;
     }
 
-    export function newRdsCluster(
-        name: string,
-        tags: object,
-        clusterIdentifier: string,
-        dbSubnetGroup: aws.rds.SubnetGroup,
-        availabilityZones: string[],
-        port: number,
-        pgAdminUser: Output<string>,
-        pgAdminPassword: Output<string>,
-        backupRetentionPeriod: number,
-        preferredBackupWindow: string,
-        engineVersion: string,
-        vpcSecurityGroupId: Output<string>,
-        finalSnapshotIdentifier: string,
-        skipFinalSnapshot: boolean,
-
-        instanceClass: string,
-        dependsOn?: Resource[]): RdsClusterResources {
-
-        const cluster = new aws.rds.Cluster(name, {
-            tags: { "Name": name, ...tags },
-            availabilityZones: availabilityZones,
-            backupRetentionPeriod: backupRetentionPeriod,
-            clusterIdentifier: clusterIdentifier,
+    export function newRdsCluster(args: RdsArgs): RdsClusterResources {
+        const engine = "aurora-postgresql";
+        const cluster = new aws.rds.Cluster(args.clusterName, {
+            tags: { "Name": args.clusterName, ...args.tags },
+            availabilityZones: args.availabilityZones,
+            backupRetentionPeriod: args.backupRetentionPeriod,
+            clusterIdentifier: args.clusterId,
             databaseName: "postgres",
-            engine: "aurora-postgresql",
-            engineVersion: engineVersion,
-            masterUsername: pgAdminUser,
-            masterPassword: pgAdminPassword,
-            preferredBackupWindow: preferredBackupWindow,
-            dbSubnetGroupName: dbSubnetGroup.name,
-            port: port,
+            engine: engine,
+            engineVersion: args.dbVersion,
+            masterUsername: args.adminUser,
+            masterPassword: args.adminPassword,
+            preferredBackupWindow: args.backupWindow,
+            dbSubnetGroupName: args.dbSubnetGroup.name,
+            port: args.dbPort,
 
             // If this is false then there needs to be a final snapshot identifier and a final
             // snapshot will be made before it is deleted.
-            skipFinalSnapshot: skipFinalSnapshot,
-            finalSnapshotIdentifier: finalSnapshotIdentifier,
+            skipFinalSnapshot: args.skipFinalSnapshot,
+            finalSnapshotIdentifier: args.finalSnapshotId,
 
             // This is necessary, otherwise it will bind the rds cluster to the default security
             // group.
-            vpcSecurityGroupIds:[ vpcSecurityGroupId ],
+            vpcSecurityGroupIds: [args.vpcSecurityGroupId],
         }, {
-            dependsOn: dependsOn
+            dependsOn: args.dependsOn
         });
 
         // NOTE: Very important! Currently (Iris) FOLIO is known to behave properly only when there is one
@@ -88,20 +73,20 @@ export module deploy {
         // is a write will hit the reader and cause an error, not allowing the write to succeed since
         // it is read only.
         const clusterInstances: aws.rds.ClusterInstance[] = [];
-        clusterInstances.push(new aws.rds.ClusterInstance(`${name}-cluster-instance-1`, {
-            tags: { "Name": name, ...tags },
-            identifier: `${name}-cluster-instance-1`,
-            clusterIdentifier: clusterIdentifier,
-            instanceClass: instanceClass,
-            engine: "aurora-postgresql",
-            engineVersion: engineVersion,
-            dbSubnetGroupName: dbSubnetGroup.name
+        clusterInstances.push(new aws.rds.ClusterInstance(`${args.clusterName}-cluster-instance-1`, {
+            tags: { "Name": args.clusterName, ...args.tags },
+            identifier: `${args.clusterName}-cluster-instance-1`,
+            clusterIdentifier: args.clusterId,
+            instanceClass: args.instanceClass,
+            engine: engine,
+            engineVersion: args.dbVersion,
+            dbSubnetGroupName: args.dbSubnetGroup.name
         }, {
             dependsOn: cluster
         }));
 
         const resources: RdsClusterResources = {
-             cluster: cluster,
+            cluster: cluster,
             instances: clusterInstances
         };
         return resources;

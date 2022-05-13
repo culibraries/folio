@@ -18,7 +18,7 @@ import { DynamicSecret } from "./interfaces/DynamicSecret";
 import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
 import { NodeGroupArgs } from "./interfaces/NodeGroupArgs";
 import { SecretArgs } from "./interfaces/SecretArgs";
-import { SearchHelmChartArgs } from "./interfaces/SearchHelmChartArgs";
+import { RdsArgs } from "./interfaces/RdsArgs";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -102,30 +102,33 @@ if (shouldCreateOwnDbCluster()) {
         tags: { "Name": dbSubnetGroupName, ...tags },
         subnetIds: vpcPrivateSubnetIds
     });
-    // Create the db cluster itself.
+
     const clusterName = util.getStackDbIdentifier();
     const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
     const pgClusterId = `${clusterName}-cluster`;
-    rdsClusterResources = postgresql.deploy.newRdsCluster(clusterName,
-        tags,
-        pgClusterId,
-        dbSubnetGroup,
-        [
+    const rdsArgs: RdsArgs = {
+        clusterName: clusterName,
+        tags: tags,
+        clusterId: pgClusterId,
+        dbSubnetGroup: dbSubnetGroup,
+        availabilityZones: [
             "us-west-2a",
             "us-west-2b",
             "us-west-2c"
         ],
-        folioDbPort,
-        pulumi.interpolate`${dbAdminUser}`,
-        pulumi.interpolate`${dbAdminPassword}`,
-        30,
-        "07:00-09:00",
-        "12.7",
-        folioSecurityGroupId,
-        pgFinalSnapshotId,
-        true,
-        "db.r6g.large",
-        [folioVpc, dbSubnetGroup]);
+        dbPort: folioDbPort,
+        adminUser: pulumi.interpolate`${dbAdminUser}`,
+        adminPassword: pulumi.interpolate`${dbAdminPassword}`,
+        backupRetentionPeriod: 30,
+        backupWindow: "07:00-09:00",
+        dbVersion: "12.7",
+        vpcSecurityGroupId: folioSecurityGroupId,
+        finalSnapshotId: pgFinalSnapshotId,
+        skipFinalSnapshot: true,
+        instanceClass: "db.r6g.large",
+        dependsOn: [folioVpc, dbSubnetGroup]
+    };
+    rdsClusterResources = postgresql.deploy.newRdsCluster(rdsArgs);
 }
 
 // Bind whichever cluster we have to the cluster endpoint that this stack owns.
