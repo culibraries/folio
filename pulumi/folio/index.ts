@@ -10,6 +10,7 @@ import * as postgresql from "./postgresql";
 import * as search from "./search";
 import * as folio from "./folio";
 import * as util from "./util";
+import * as storage from "./storage";
 
 import { Output, Resource } from "@pulumi/pulumi";
 import { FolioDeployment } from "./classes/FolioDeployment";
@@ -19,6 +20,8 @@ import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
 import { NodeGroupArgs } from "./interfaces/NodeGroupArgs";
 import { SecretArgs } from "./interfaces/SecretArgs";
 import { RdsArgs } from "./interfaces/RdsArgs";
+import { BucketResources } from "./interfaces/S3BucketResources";
+import { DataExportStorageArgs } from "./interfaces/DataExportStorageArgs";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -357,20 +360,26 @@ const dbSecretArgs: SecretArgs = {
 const dbConnectSecret = folio.deploy.secret(dbSecretArgs);
 
 // Bucket required by mod-data-export, which is required by mod-inventory.
-// TODO Create this bucket in pulumi. Currently these have been created manually.
-// TODO Create the access policy in pulumi. Both of these resources are tied to the stack.
 // The user that provides the access key and access key id is not tied to the stack
 // and travels between all stacks. This user must be created manually.
-const dataExportBucket = `folio-data-export-${pulumi.getStack()}`;
+const dataExportBucketName = `folio-data-export-${pulumi.getStack()}`;
 const dataExportSecretAccessKey = config.requireSecret("data-export-user-secretaccesskey");
 const dataExportAccessKeyId = config.requireSecret("data-export-user-accesskeyid");
+const awsAccountId = config.requireSecret("awsAccountId");
+const storageArgs: DataExportStorageArgs = {
+    name: dataExportBucketName,
+    awsAccountId: awsAccountId,
+    iamUserId: "folio-data-export", // This is the username tied to the secret access key and access key id stored in the config.
+    tags: tags
+};
+storage.deploy.s3BucketForDataExport(storageArgs);
 
-var s3CredentialsDataExportSecretData: DynamicSecret = {
+const s3CredentialsDataExportSecretData: DynamicSecret = {
     AWS_SECRET_ACCESS_KEY: util.base64Encode(pulumi.interpolate`${dataExportSecretAccessKey}`),
     AWS_ACCESS_KEY_ID: util.base64Encode(pulumi.interpolate`${dataExportAccessKeyId}`),
-    AWS_BUCKET: Buffer.from(dataExportBucket).toString("base64"),
+    AWS_BUCKET: Buffer.from(dataExportBucketName).toString("base64"),
     AWS_REGION: util.base64Encode(pulumi.interpolate`${awsRegion}`),
-    AWS_URL: Buffer.from(`https://${dataExportBucket}.s3.amazonaws.com`).toString("base64")
+    AWS_URL: Buffer.from(`https://${dataExportBucketName}.s3.amazonaws.com`).toString("base64")
 };
 const s3SecretArgs: SecretArgs = {
     name: "s3-credentials-data-export",

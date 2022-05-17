@@ -1,4 +1,3 @@
-import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import * as awsNative from "@pulumi/aws-native";
 import * as aws from "@pulumi/aws";
@@ -32,13 +31,9 @@ export module deploy {
 
     export function domain(args: SearchDomainArgs): aws.opensearch.Domain {
         const stackId = util.getStackSearchIdentifier();
-        const currentRegion = aws.getRegion({});
-        const currentCallerIdentity = aws.getCallerIdentity({});
-        // var arn = args.awsAccountId.apply(accountId =>
-        //     `arn:aws:es:${args.awsRegion}:${accountId}}:domain/${stackId}/*`); // This could be added to Resource but sadly it makes no difference.
 
-        // // Create the simplest possible policy with unrestricted access. Basic auth
-        // // is still in effect (aka 'fine grained access control'), but that's all that is in effect.
+        // Create the simplest possible policy with unrestricted access. Basic auth
+        // is still in effect (aka 'fine grained access control'), but that's all that is in effect.
         const unrestrictedPolicy =
             `{
             "Version": "2012-10-17",
@@ -56,45 +51,8 @@ export module deploy {
             ]
         }`;
 
-        // // Create a somewhat more complex and restrictive policy. The only problem is that
-        // // this policy doesn't allow in-cluster access even though I pass in the cluster cidr
-        // // block. It must be that VPC deployment is considered the way to limit to a set of ips
-        // // should those IPs be created in a eks cluster.
-        // var policyWithIpFilter =
-        //     `{
-        //     "Version": "2012-10-17",
-        //     "Statement": [
-        //         {
-        //             "Effect": "Allow",
-        //             "Principal": {
-        //                 "AWS": "*"
-        //             },
-        //             "Action": [
-        //                 "es:*"
-        //             ],
-        //             "Condition": {
-        //                 "IpAddress": {
-        //                     "aws:SourceIp": ["${args.clusterCidrBlock}"]
-        //                 }
-        //             },
-        //             "Resource": "*
-        //         }
-        //     ]
-        // }`.replace(/(\r\n|\n|\r|\s)/gm, ""); // AWS complains that it contains a \n char. So we remove everything.
-
         const domain = new aws.opensearch.Domain(args.name, {
             tags: args.tags,
-            // accessPolicies: Promise.all([currentRegion, currentCallerIdentity]).then(([currentRegion, currentCallerIdentity]) => `{
-            //     "Version": "2012-10-17",
-            //     "Statement": [
-            //         {
-            //             "Action": "es:*",
-            //             "Principal": "*",
-            //             "Effect": "Allow",
-            //             "Resource": "arn:aws:es:${currentRegion.name}:${currentCallerIdentity.accountId}:domain/${stackId}/*"
-            //         }
-            //     ]
-            // }`),
             accessPolicies: unrestrictedPolicy,
             domainName: stackId,
             engineVersion: "OpenSearch_1.2",
@@ -140,7 +98,6 @@ export module deploy {
     }
 
     export function domainVpc(args: SearchDomainArgs): aws.opensearch.Domain {
-        //const stackId = util.getStackSearchIdentifier();
         const stackId = "search-green-2";
         const currentRegion = aws.getRegion({});
         const currentCallerIdentity = aws.getCallerIdentity({});
@@ -200,10 +157,6 @@ export module deploy {
             // https://docs.aws.amazon.com/opensearch-service/latest/developerguide/what-is.html#choosing-version
             // This can also be ElasticSearch_X.Y.
             engineVersion: "OpenSearch_1.2",
-            // vPCOptions: {
-            //     securityGroupIds: [args.vpcSecurityGroupId],
-            //     subnetIds: args.privateSubnetIds
-            // },
             // For these options see: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-opensearchservice-domain-clusterconfig.html
             // Trying to choose some sensible defaults here for opensearch while
             // making different size deployments configurable.
@@ -218,9 +171,6 @@ export module deploy {
                 },
                 instanceType: args.instanceType,
                 instanceCount: args.instanceCount,
-                // dedicatedMasterEnabled: true, // Should "increase the stability of the cluster". See docs.
-                // dedicatedMasterCount: 2, // Needs to be greater than 1 for CloudFormation to let it through.
-                // dedicatedMasterType: args.dedicatedMasterType
             },
             // For other options see: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-opensearchservice-domain-ebsoptions.html
             eBSOptions: {
@@ -238,9 +188,6 @@ export module deploy {
                     {
                         "Effect": "Allow",
                         "Principal": {
-                            // "AWS": [
-                            //     args.awsAccountId
-                            // ]
                             "AWS": "*"
                         },
                         "Action": [
@@ -253,9 +200,6 @@ export module deploy {
                                 ]
                             }
                         },
-                        // This constructs the domain ARN.
-                        // "Resource": args.awsAccountId.apply(accountId =>
-                        //     `arn:aws:es:${args.awsRegion}:${accountId}}:domain/${searchDomainName}/*`)
                         "Resource": "*"
                     }
                 ]
