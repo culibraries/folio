@@ -436,7 +436,7 @@ const okapiProdCertArn: string = "arn:aws:acm:us-west-2:735677975035:certificate
 
 // Until we have a better way to cut over between environments, we need to let the stack
 // control which which cert gets bound to the okapi service.
-export const okapiCertArn: string = util.usesProdData(pulumi.getStack()) ? okapiProdCertArn : cublCtaCertArn;
+export const okapiCertArn: string = util.usesProdCerts(pulumi.getStack()) ? okapiProdCertArn : cublCtaCertArn;
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 var okapiDependencies: pulumi.Resource[] = [dbConnectSecret, s3CredentialsDataExportSecret,

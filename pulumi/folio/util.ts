@@ -59,3 +59,8 @@ export function usesProdData(stack: string) {
     const prod = ["dev"];
     return prod.includes(stack);
 }
+
+export function usesProdCerts(stack: string) {
+    const prod = ["dev"];
+    return prod.includes(stack);
+}
