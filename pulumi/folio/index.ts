@@ -20,7 +20,6 @@ import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
 import { NodeGroupArgs } from "./interfaces/NodeGroupArgs";
 import { SecretArgs } from "./interfaces/SecretArgs";
 import { RdsArgs } from "./interfaces/RdsArgs";
-import { BucketResources } from "./interfaces/S3BucketResources";
 import { DataExportStorageArgs } from "./interfaces/DataExportStorageArgs";
 
 // Set some default tags which we will add to when defining resources.
@@ -432,7 +431,7 @@ export const cublCtaCertArn: string =
 // folio.colorado.edu
 export const stripesProdCertArn: string =
     "arn:aws:acm:us-west-2:735677975035:certificate/0e57ac8a-4fd5-4dbe-b8ac-d8f486798293";
-// folio.colorado.edu
+// okapi.colorado.edu
 const okapiProdCertArn: string = "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
 
 // Until we have a better way to cut over between environments, we need to let the stack
