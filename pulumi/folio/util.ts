@@ -61,6 +61,6 @@ export function usesProdData(stack: string) {
 }
 
 export function usesProdCerts(stack: string) {
-    const prod = ["dev"];
+    const prod = ["dev", "green"];
     return prod.includes(stack);
 }

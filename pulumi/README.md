@@ -367,6 +367,14 @@ To perform the swap do the following steps:
 
 Depending on the database you're swapping out, you may also need to reset some items in the stack config for the db's username and password. These will cascade to the db connection secret when you run `pulumi up`. Finally, you may need to restart your pods for the environment to pick up your changes. There is a convenience script called `restart-deployments.sh` for this.
 
+## Securing the supertenant
+For a system to be completely locked down you need to secure the supertenant. To do this run the `secure-supertenant.py` script. Get the superuser username and password by by running `pulumi config --show-secrets`.
+Then do:
+```
+python3 secure-supertenant.py -u <the username> -p <the password> -o https://<your okapi url>:9130
+```
+If all goes well you should see a message like `Successfully secured okapi`.
+
 ## Debugging
 
 ### Recovering from stack state de-sync
