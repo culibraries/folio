@@ -3,6 +3,10 @@ config:
   aws:region: us-west-2
   folio:awsAccountId:
     secure: v1:A+RqQL08yiogEcRO:rYuJRnLxRZuoar+uCeBFxqEvbohsxe7pggTlhg==
+  folio:data-export-user-accesskeyid:
+    secure: v1:SGw4QEPMmtiaRr8W:eikZqROBbYaOEn5b9rVbFg8GZ0lkhrmV2BjsKmR6cJe1x6er
+  folio:data-export-user-secretaccesskey:
+    secure: v1:qERkWVlOgouJIKPD:azN6Lt9c80UxYIZNADp3ynMAd8UPuMAIXANun2ReN/IgvDq6rNSqH9q8JAk0Ia/WvwACGGeTc80=
   folio:db-admin-password:
     secure: v1:fa0xQbp/XC2W2k3H:bD4Ym807AYAUyITuFJIG7EMStY6bv2NdeSI=
   folio:db-admin-user:
