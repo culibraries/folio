@@ -270,6 +270,9 @@ Steps to use a non-colorado.edu domain:
 8. Rebuild the stripes container with the new okapi URL. See the Dockerfile and the `OKAPI_URL` variable there. See the instructions for building this container in /containers/folio/stripes.
 9. Change the tag in index.js for this container. Run `pulumi up`. Verify that the correctly tagged container is loaded in the pod by doing `describe pod`.
 
+### Switching the okapi container cert between cublcta domain and colorado.edu domain
+While stripes has 2 containers, one of which is built for cublcta.com access and the other of which is built for colorado.edu, there must be only one okapi gateway for the folio deployment. Because of this its cert needs to be applied to reflect whatever domain is being used to serve okapi. This is currently controlled by a the array in the `uilt.usesProdCerts`. If the colorado.edu domain is being used, the `prod` array needs to include the stack name and running `pulumi up` will apply the change.
+
 ### Getting colorado.edu certificates
 Fill out this form https://oit.colorado.edu/services/web-content-applications/ssl-certificates. This will generate a ticket for campus IT to work on the certificate request. Follow the instructions in the email that you get. For example, there is a second form that needs to be filled out to actually start the certificate issuance process through a 3rd party company that our IT contracts with.
 
