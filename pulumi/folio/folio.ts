@@ -1,60 +1,13 @@
 
-import { FolioModule } from "./classes/FolioModule";
-import { FolioDeployment } from "./classes/FolioDeployment";
-
-import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
-
 import * as input from "@pulumi/kubernetes/types/input";
 import * as eks from "@pulumi/eks";
-import { Resource } from "@pulumi/pulumi";
 
-import * as fs from 'fs';
+import { Resource } from "@pulumi/pulumi";
+import { SecretArgs } from "./interfaces/SecretArgs";
+import { FolioModule } from "./classes/FolioModule";
 
 export module prepare {
-    /**
-     * Prepare a list of folio modules which can be used to deploy.
-     * @returns A list of FolioModule objects.
-     */
-    export function moduleList(fd: FolioDeployment): FolioModule[] {
-        var folioModules: FolioModule[] = new Array<FolioModule>();
-
-        const releaseModules = modulesForRelease(fd.deploymentConfigurationFilePath);
-
-        for (const module of releaseModules) {
-
-            const parsed = parseModuleNameAndId(module.id);
-
-            if (module.action === "enable") {
-                const m = new FolioModule(parsed.name,
-                    parsed.version,
-                    true,
-                    fd.tenantId,
-                    fd.okapiUrl,
-                    fd.containerRepository);
-                folioModules.push(m);
-            }
-        }
-
-        return folioModules;
-    }
-
-    export function parseModuleNameAndId(moduleId: string): any {
-        const versionStart = moduleId.lastIndexOf('-') + 1;
-        const versionEnd = moduleId.length;
-        const moduleVersion = moduleId.substring(versionStart, versionEnd);
-
-        const nameStart = 0;
-        const nameEnd = moduleId.lastIndexOf('-');
-        const moduleName = moduleId.substring(nameStart, nameEnd);
-
-        return { name: moduleName, version: moduleVersion };
-    }
-
-    export function modulesForRelease(deploymentConfigFilePath: string): Array<any> {
-        const release = fs.readFileSync(deploymentConfigFilePath, 'utf8');
-        return JSON.parse(release);
-    }
 
     export function jobContainers(modules: FolioModule[]): input.core.v1.Container[] {
         var imageName = "folioci/folio-okapi-registration";
@@ -112,24 +65,19 @@ export module deploy {
             });
     }
 
-    export function secret(name: string,
-        data: any,
-        labels: any,
-        cluster: eks.Cluster,
-        namespace: k8s.core.v1.Namespace,
-        dependsOn?: Resource[]): k8s.core.v1.Secret {
-        return new k8s.core.v1.Secret(name,
+    export function secret(args: SecretArgs): k8s.core.v1.Secret {
+        return new k8s.core.v1.Secret(args.name,
             {
                 metadata: {
-                    name: name,
-                    labels: labels,
-                    namespace: namespace.id,
+                    name: args.name,
+                    labels: args.labels,
+                    namespace: args.namespace.id,
                 },
-                data: data,
+                data: args.data,
             },
             {
-                provider: cluster.provider,
-                dependsOn: dependsOn
+                provider: args.cluster.provider,
+                dependsOn: args. dependsOn
             });
     }
 
@@ -264,18 +212,20 @@ export module deploy {
      * @param cluster A reference to the k8s cluster.
      * @param namespace A reference to the k8s namespace.
      * @param toDeploy The modules to deploy.
+     * @param dependsOn The dependencies.
      * @returns A list of the module resources.
      */
     export function modules(toDeploy: Array<FolioModule>,
         cluster: eks.Cluster,
         namespace: k8s.core.v1.Namespace,
-        okapiReleases: k8s.helm.v3.Release[]): Resource[] {
+        dependsOn: Resource[]): Resource[] {
 
         // Filter out okapi and the front-end modules. Okapi is deployed separately
         // prior to deploying the modules. Also, the front-end modules are only relevant
         // later when they need to be registered to okapi. In other words, they are not
         // containers that get deployed, like the regular modules.
-        toDeploy = toDeploy.filter(module => module.name !== "okapi")
+        toDeploy = toDeploy
+            .filter(module => module.name !== "okapi")
             .filter(module => !module.name.startsWith("folio_"));
 
         const moduleReleases: Resource[] = [];
@@ -284,7 +234,7 @@ export module deploy {
             const values = getModuleValues(module);
 
             const moduleRelease =
-                deployHelmChart(module.name, module.name, cluster, namespace, values, okapiReleases);
+                deployHelmChart(module.name, module.name, cluster, namespace, values, dependsOn);
             moduleReleases.push(moduleRelease);
         }
 

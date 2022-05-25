@@ -7,15 +7,20 @@ import * as iam from "./iam";
 import * as cluster from "./cluster";
 import * as kafka from "./kafka";
 import * as postgresql from "./postgresql";
+import * as search from "./search";
 import * as folio from "./folio";
 import * as util from "./util";
+import * as storage from "./storage";
 
-import { FolioModule } from "./classes/FolioModule";
+import { Output, Resource } from "@pulumi/pulumi";
 import { FolioDeployment } from "./classes/FolioDeployment";
-import { RdsClusterResources } from "./classes/RdsClusterResources";
-import { Resource } from "@pulumi/pulumi";
-
-// import * as pulumiPostgres from "@pulumi/postgresql";
+import { RdsClusterResources } from "./interfaces/RdsClusterResources";
+import { DynamicSecret } from "./interfaces/DynamicSecret";
+import { SearchDomainArgs } from "./interfaces/SearchDomainArgs";
+import { NodeGroupArgs } from "./interfaces/NodeGroupArgs";
+import { SecretArgs } from "./interfaces/SecretArgs";
+import { RdsArgs } from "./interfaces/RdsArgs";
+import { DataExportStorageArgs } from "./interfaces/DataExportStorageArgs";
 
 // Set some default tags which we will add to when defining resources.
 const tags = {
@@ -25,6 +30,19 @@ const tags = {
     "Accounting": "cubl-folio",
     "DataClassificationCompliance": "standard"
 };
+
+// Create an object to represent the FOLIO deployment.
+const config = new pulumi.Config();
+const awsConfig = new pulumi.Config("aws");
+const awsRegion = awsConfig.require("region");
+const releaseFilePath = `./deployments/${config.require("release")}.json`;
+const tenant = "cubl";
+const okapiUrl = "http://okapi:9130";
+const containerRepo = "folioorg";
+const folioDeployment = new FolioDeployment(tenant,
+    releaseFilePath,
+    okapiUrl,
+    containerRepo);
 
 // Create the CIDR block for the VPC. This is the default, but there
 // are some items in our security group that should have this range rather
@@ -45,16 +63,6 @@ export const vpcId = folioVpc.id;
 export const folioSecurityGroupId = folioSecurityGroup.id;
 export const vpcPrivateSubnetIds = folioVpc.privateSubnetIds;
 export const vpcPublicSubnetIds = folioVpc.publicSubnetIds;
-
-// Create the database resources that are needed in our VPC. At minimum we need a
-// database subnet group, and a cluster reference.
-const config = new pulumi.Config();
-export const folioDbPort = 5432;
-export const dbSubnetGroupName = "folio-db-subnet";
-const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
-    tags: { "Name": dbSubnetGroupName, ...tags },
-    subnetIds: vpcPrivateSubnetIds
-});
 
 /**
  * The pulumi configuration key which points to the database cluster this
@@ -81,35 +89,48 @@ const dbAdminPassword = config.requireSecret("db-admin-password");
 const dbUserName = config.requireSecret("db-user-name");
 const dbUserPassword = config.requireSecret("db-user-password");
 
+export const folioDbPort = 5432;
+
 // Create the RDS resources, if they are needed. Note that on the first run a stack
 // always needs a RDS cluster to be deployed, otherwise subsequent steps won't work.
 // But once a full stack is deployed, the RDS cluster can be swapped out by adding
 // a special key in the configuration which will perform the swap on subsequent updates.
 let rdsClusterResources = {} as RdsClusterResources;
 if (shouldCreateOwnDbCluster()) {
-    const clusterName = pulumi.getStack() === "scratch" ? "folio-pg-scratch" : "folio-pg";
+    // Create the database resources that are needed in our VPC. At minimum we need a
+    // database subnet group, and a cluster reference.
+    const dbSubnetGroupName = "folio-db-subnet";
+    const dbSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
+        tags: { "Name": dbSubnetGroupName, ...tags },
+        subnetIds: vpcPrivateSubnetIds
+    });
+
+    const clusterName = util.getStackDbIdentifier();
     const pgFinalSnapshotId = `${clusterName}-cluster-final-snapshot-0`;
     const pgClusterId = `${clusterName}-cluster`;
-    rdsClusterResources = postgresql.deploy.newRdsCluster(clusterName,
-        tags,
-        pgClusterId,
-        dbSubnetGroup,
-        [
+    const rdsArgs: RdsArgs = {
+        clusterName: clusterName,
+        tags: tags,
+        clusterId: pgClusterId,
+        dbSubnetGroup: dbSubnetGroup,
+        availabilityZones: [
             "us-west-2a",
             "us-west-2b",
             "us-west-2c"
         ],
-        folioDbPort,
-        pulumi.interpolate`${dbAdminUser}`,
-        pulumi.interpolate`${dbAdminPassword}`,
-        30,
-        "07:00-09:00",
-        "12.7",
-        folioSecurityGroupId,
-        pgFinalSnapshotId,
-        true,
-        "db.r6g.large",
-        [folioVpc, dbSubnetGroup]);
+        dbPort: folioDbPort,
+        adminUser: pulumi.interpolate`${dbAdminUser}`,
+        adminPassword: pulumi.interpolate`${dbAdminPassword}`,
+        backupRetentionPeriod: 30,
+        backupWindow: "07:00-09:00",
+        dbVersion: "12.7",
+        vpcSecurityGroupId: folioSecurityGroupId,
+        finalSnapshotId: pgFinalSnapshotId,
+        skipFinalSnapshot: true,
+        instanceClass: "db.r6g.large",
+        dependsOn: [folioVpc, dbSubnetGroup]
+    };
+    rdsClusterResources = postgresql.deploy.newRdsCluster(rdsArgs);
 }
 
 // Bind whichever cluster we have to the cluster endpoint that this stack owns.
@@ -123,14 +144,14 @@ if (shouldCreateOwnDbCluster()) {
 } else {
     // The interpolate call is needed to convert the literal to the Output type.
     dbClusterIdentifier = pulumi.interpolate`${config.require(dbClusterConfigKey)}`;
-    dbResourceDependencies.concat([folioVpc, dbSubnetGroup]);
+    dbResourceDependencies.concat([folioVpc]);
 }
 export const customEndpointName = pulumi.getStack();
 const clusterEndpoint = new aws.rds.ClusterEndpoint(customEndpointName, {
     clusterIdentifier: dbClusterIdentifier,
     clusterEndpointIdentifier: customEndpointName,
     customEndpointType: "ANY",
-    tags: {"Name": customEndpointName, ...tags },
+    tags: { "Name": customEndpointName, ...tags },
 }, {
     // This doesn't mean that the dns entry will change. If fact, the dns remains
     // the same after a new instance is created.
@@ -151,7 +172,7 @@ const workerRoleManagedPolicyArns: string[] = [
     "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
 ];
 const folioWorkerRoleName = "folio-worker-role";
-const folioWorkerRole:aws.iam.Role = iam.deploy.awsRoleWithManagedPolicyAttachments
+const folioWorkerRole: aws.iam.Role = iam.deploy.awsRoleWithManagedPolicyAttachments
     (folioWorkerRoleName, tags, workerRoleManagedPolicyArns, "ec2.amazonaws.com");
 const folioInstanceProfile =
     iam.deploy.awsBindRoleToInstanceProfile("folio-worker-role-instance-profile", folioWorkerRole);
@@ -171,7 +192,7 @@ export const eksClusterName = folioCluster.eksCluster.name;
 // Create the node group with a bit more control than we would be given with the
 // defaults. Using this approach we could create multiple node groups if we wanted to
 // each with its own properties and InstanceProfile.
-const folioNodeGroupArgs = {
+const nodeGroupArgs: NodeGroupArgs = {
     name: "folio-node-group",
     instanceType: aws.ec2.InstanceType.T3_XLarge,
     desiredCapacity: 4,
@@ -180,7 +201,7 @@ const folioNodeGroupArgs = {
     // On-demand are the more expensive, non-spot instances.
     labels: { "ondemand": "true" }
 };
-cluster.deploy.awsCreateEksNodeGroup(folioNodeGroupArgs, folioCluster, folioInstanceProfile);
+cluster.deploy.awsCreateEksNodeGroup(nodeGroupArgs, folioCluster, folioInstanceProfile);
 
 // Configure the networking addons that we want.
 // See https://www.pulumi.com/registry/packages/aws/api-docs/eks/addon/
@@ -199,16 +220,6 @@ export const folioNamespace = new k8s.core.v1.Namespace("folio", {}, { provider:
 // Export the namespace for us in other functions.
 export const folioNamespaceName = folioNamespace.metadata.name;
 
-// Create an object to represent the FOLIO deployment.
-const releaseFilePath = "./deployments/R2-2021.json";
-const tenant = "cubl";
-const okapiUrl = "http://okapi:9130";
-const containerRepo = "folioorg";
-const folioDeployment = new FolioDeployment(tenant,
-    releaseFilePath,
-    okapiUrl,
-    containerRepo);
-
 // Create a configMap for folio for certain non-secret environment variables that will be deployed.
 const configMapData = {
     DB_PORT: folioDbPort.toString(),
@@ -223,9 +234,11 @@ const appLabels = { appClass: appName };
 const configMap = folio.deploy.configMap("default-config",
     configMapData, appLabels, folioCluster, folioNamespace, [folioNamespace]);
 
+// Create a secret for the opensearch dashboard username and password and deploy the chart.
+// Also create the chart.
 // Create a secret for folio to store our environment variables that k8s will inject into each pod.
 // These secrets have been set in the stack using the pulumi command line.
-var dbConnectSecretData = {
+var dbConnectSecretData: DynamicSecret = {
     DB_HOST: util.base64Encode(folioDbHost),
     DB_USERNAME: util.base64Encode(pulumi.interpolate`${dbUserName}`),
     DB_PASSWORD: util.base64Encode(pulumi.interpolate`${dbUserPassword}`),
@@ -257,31 +270,136 @@ var dbConnectSecretData = {
 
     // These two are required by mod-service-interaction.
     OKAPI_PORT: Buffer.from("9130").toString("base64"),
-    OKAPI_HOST: Buffer.from("okapi").toString("base64")
-};
+    OKAPI_HOST: Buffer.from("okapi").toString("base64"),
+}
+
+let searchDomainResource = <Resource>{};
+let searchDomainEndpoint = <Output<string>>{};
+let searchDomainEndpoint_temp = <Output<string>>{};
+if (folioDeployment.hasSearch()) {
+    const searchDashboardCookie = config.requireSecret("search-cookie");
+    const searchUsername = config.requireSecret("search-user");
+    const searchPassword = config.requireSecret("search-password");
+
+    // Create the opensearch domain that will be needed for mod-search. Like RDS above, this is
+    // created outside of the k8s cluster so that it can be managed by AWS instead of by us.
+    const searchArgs: SearchDomainArgs = {
+        name: "folio-search",
+        fd: folioDeployment,
+        vpcSecurityGroupId: folioSecurityGroupId,
+        // The cluster code takes care of converting the subnet ids to outputs rather than
+        // promise-wrapped outputs. Pulumi aws-native doesn't play nicely with promise-wrapped
+        // outputs, unlike the other Pulumi code we're using.
+        privateSubnetIds: folioCluster.core.privateSubnetIds,
+        instanceType: "m5.large.search",
+        instanceCount: 3,
+        dedicatedMasterType: "m6g.large.search", // Smaller than instances.
+        volumeSize: 20,
+        masterUserUsername: searchUsername,
+        masterUserPassword: searchPassword,
+        awsAccountId: config.requireSecret("awsAccountId"),
+        awsRegion: awsConfig.require("region"),
+        clusterCidrBlock: clusterCidrBlock,
+        tags: tags,
+        dependsOn: [folioSecurityGroup, folioVpc, folioCluster]
+    };
+    const folioSearchDomain = search.deploy.domain(searchArgs);
+    searchDomainResource = folioSearchDomain;
+    searchDomainEndpoint = folioSearchDomain.endpoint;
+
+    const elasticSearchPort = "443";
+    dbConnectSecretData.ELASTICSEARCH_URL =
+        util.base64Encode(pulumi.interpolate`https://${folioSearchDomain.endpoint}`); // mod-search readme says its depreciated but folio-helm chart requires it.
+    dbConnectSecretData.ELASTICSEARCH_HOST =
+        util.base64Encode(pulumi.interpolate`https://${folioSearchDomain.endpoint}`); // mod-search readme says its depreciated but folio-helm chart requires it.
+    dbConnectSecretData.ELASTICSEARCH_USERNAME = util.base64Encode(pulumi.interpolate`${searchUsername}`);
+    dbConnectSecretData.ELASTICSEARCH_PASSWORD = util.base64Encode(pulumi.interpolate`${searchPassword}`);
+    dbConnectSecretData.ELASTICSEARCH_PORT = Buffer.from(elasticSearchPort).toString("base64"); // mod-search readme says its depreciated.
+
+    const openSearchSecretData: DynamicSecret = {
+        // Key case matters here.
+        username: util.base64Encode(pulumi.interpolate`${searchUsername}`),
+        password: util.base64Encode(pulumi.interpolate`${searchPassword}`),
+        cookie: util.base64Encode(pulumi.interpolate`${searchDashboardCookie}`),
+    };
+    const searchSecretArgs: SecretArgs = {
+        name: "opensearchdashboards-auth",
+        labels: appLabels,
+        cluster: folioCluster,
+        namespace: folioNamespace,
+        data: openSearchSecretData,
+        //dependsOn: [folioCluster, folioNamespace, folioSearchDomain]
+        dependsOn: [folioCluster, folioNamespace]
+    };
+    folio.deploy.secret(searchSecretArgs);
+    // const searchSecret = folio.deploy.secret(searchSecretArgs);
+    // const searchDashboardHelmChartArgs: SearchHelmChartArgs = {
+    //     name: "folio-search-dashboard",
+    //     cluster: folioCluster,
+    //     namespace: folioNamespace,
+    //     domainUrl: folioSearchDomain.domainEndpoint,
+    //     secretArgs: searchSecretArgs,
+    //     dependsOn: [folioCluster, folioNamespace, folioSearchDomain, searchSecret]
+    // };
+    // search.deploy.dashboardHelmChart(searchDashboardHelmChartArgs);
+}
+export const folioSearchDomainEndpoint = searchDomainEndpoint;
+export const folioSearchDomainEndpoint_temp = searchDomainEndpoint_temp;
+
 // Deploy the main secret which is used by modules to connect to the db. This
 // secret name is used extensively in folio-helm.
-const dbConnectSecret = folio.deploy.secret("db-connect-modules", dbConnectSecretData,
-    appLabels, folioCluster, folioNamespace, [folioNamespace]);
+const dbSecretArgs: SecretArgs = {
+    name: "db-connect-modules",
+    data: dbConnectSecretData,
+    labels: appLabels,
+    cluster: folioCluster,
+    namespace: folioNamespace,
+    dependsOn: [folioNamespace]
+};
+const dbConnectSecret = folio.deploy.secret(dbSecretArgs);
 
 // Bucket required by mod-data-export, which is required by mod-inventory.
-// TODO Create this bucket in pulumi.
-const dataExportBucket = `folio-data-export-${pulumi.getStack()}`;
-var s3CredentialsDataExportSecretData = {
-    AWS_ACCESS_KEY_ID: Buffer.from("TODO").toString("base64"),
-    AWS_BUCKET: Buffer.from(dataExportBucket).toString("base64"),
-    AWS_REGION: Buffer.from("TODO").toString("base64"),
-    AWS_SECRET_ACCESS_KEY: Buffer.from("TODO").toString("base64"),
-    AWS_URL: Buffer.from("https://s3.amazonaws.com").toString("base64")
+// The user that provides the access key and access key id is not tied to the stack
+// and travels between all stacks. This user must be created manually.
+const dataExportBucketName = `folio-data-export-${pulumi.getStack()}`;
+const dataExportSecretAccessKey = config.requireSecret("data-export-user-secretaccesskey");
+const dataExportAccessKeyId = config.requireSecret("data-export-user-accesskeyid");
+const awsAccountId = config.requireSecret("awsAccountId");
+const storageArgs: DataExportStorageArgs = {
+    name: dataExportBucketName,
+    awsAccountId: awsAccountId,
+    iamUserId: "folio-data-export", // This is the username tied to the secret access key and access key id stored in the config.
+    tags: tags
 };
-const s3CredentialsDataExportSecret = folio.deploy.secret("s3-credentials-data-export",
-    s3CredentialsDataExportSecretData, appLabels, folioCluster,
-    folioNamespace, [folioNamespace]);
+storage.deploy.s3BucketForDataExport(storageArgs);
+
+const s3CredentialsDataExportSecretData: DynamicSecret = {
+    AWS_SECRET_ACCESS_KEY: util.base64Encode(pulumi.interpolate`${dataExportSecretAccessKey}`),
+    AWS_ACCESS_KEY_ID: util.base64Encode(pulumi.interpolate`${dataExportAccessKeyId}`),
+    AWS_BUCKET: Buffer.from(dataExportBucketName).toString("base64"),
+    AWS_REGION: util.base64Encode(pulumi.interpolate`${awsRegion}`),
+    AWS_URL: Buffer.from(`https://${dataExportBucketName}.s3.amazonaws.com`).toString("base64")
+};
+const s3SecretArgs: SecretArgs = {
+    name: "s3-credentials-data-export",
+    data: s3CredentialsDataExportSecretData,
+    labels: appLabels,
+    cluster: folioCluster,
+    namespace: folioNamespace,
+    dependsOn: [folioNamespace]
+}
+const s3CredentialsDataExportSecret = folio.deploy.secret(s3SecretArgs);
 // Note for some reason the folio-helm chart for mod-data-export-worker requires the same items
 // but with a different name.
-const s3CredentialsSecret = folio.deploy.secret("s3-credentials",
-    s3CredentialsDataExportSecretData, appLabels, folioCluster,
-    folioNamespace, [folioNamespace]);
+const s3CredentialSecretArgs: SecretArgs = {
+    name: "s3-credentials",
+    data: s3CredentialsDataExportSecretData,
+    labels: appLabels,
+    cluster: folioCluster,
+    namespace: folioNamespace,
+    dependsOn: [folioNamespace]
+};
+const s3CredentialsSecret = folio.deploy.secret(s3CredentialSecretArgs);
 
 // Deploy Kafka via a Helm Chart into the FOLIO namespace.
 export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNamespace,
@@ -291,7 +409,7 @@ export const kafkaInstance = kafka.deploy.helm("kafka", folioCluster, folioNames
 // This can run multiple times without causing trouble.
 var dbCreateJob = {} as k8s.batch.v1.Job;
 // Run a k8s job to create the FOLIO database if we're creating a new cluster from scratch.
- if (shouldCreateOwnDbCluster()) {
+if (shouldCreateOwnDbCluster()) {
     dbCreateJob = postgresql.deploy.databaseCreation("create-database",
         folioNamespace,
         folioCluster,
@@ -303,24 +421,22 @@ var dbCreateJob = {} as k8s.batch.v1.Job;
         "postgres",
         [folioNamespace, rdsClusterResources.cluster, ...rdsClusterResources.instances]);
 }
-// Prepare the list of modules to deploy.
-const modules: FolioModule[] = folio.prepare.moduleList(folioDeployment);
 
 // Get a reference to the okapi module.
-const okapiModule: FolioModule = util.getModuleByName("okapi", modules);
+const okapiModule = util.getModuleByName("okapi", folioDeployment.modules);
 
 // The cublctaCertArn is a wildcard certificate so there's only one ARN. This is *.cublcta.com.
-const cublCtaCertArn: string =
+export const cublCtaCertArn: string =
     "arn:aws:acm:us-west-2:735677975035:certificate/5b3fc124-0b6e-4698-9c31-504c84a979ba";
 // folio.colorado.edu
-const stripesProdCertArn: string =
+export const stripesProdCertArn: string =
     "arn:aws:acm:us-west-2:735677975035:certificate/0e57ac8a-4fd5-4dbe-b8ac-d8f486798293";
-// folio.colorado.edu
+// okapi.colorado.edu
 const okapiProdCertArn: string = "arn:aws:acm:us-west-2:735677975035:certificate/693d17a8-72b3-46b7-84f5-defe467d0896";
 
 // Until we have a better way to cut over between environments, we need to let the stack
 // control which which cert gets bound to the okapi service.
-const okapiCertArn: string = pulumi.getStack() === "scratch" ? cublCtaCertArn : okapiProdCertArn;
+export const okapiCertArn: string = util.usesProdCerts(pulumi.getStack()) ? okapiProdCertArn : cublCtaCertArn;
 
 // Deploy okapi first, being sure that other dependencies have deployed first.
 var okapiDependencies: pulumi.Resource[] = [dbConnectSecret, s3CredentialsDataExportSecret,
@@ -333,18 +449,27 @@ if (shouldCreateOwnDbCluster()) {
 const productionOkapiRelease: k8s.helm.v3.Release = folio.deploy.okapi(okapiModule,
     okapiCertArn, folioCluster, folioNamespace, okapiDependencies);
 
+// Build a list of dependencies that accounts for search, so that module installation
+// will wait until search domain install is finished.
+var moduleInstallDependencies: pulumi.Resource[] = [productionOkapiRelease, dbConnectSecret];
+if (folioDeployment.hasSearch()) {
+    // Comment in or out when deleting search domains to avoid an error.
+    moduleInstallDependencies.push(searchDomainResource);
+}
 // Deploy the rest of the modules that we want. This excludes okapi.
-const moduleReleases = folio.deploy.modules(modules, folioCluster, folioNamespace,
-    [productionOkapiRelease]);
+const moduleReleases = folio.deploy.modules(folioDeployment.modules, folioCluster, folioNamespace,
+    moduleInstallDependencies);
 
 // These deploy with the name "platform-complete-dev or platform-complete for prod".
-// These tags and containers are the result of a manual build process. See the readme in the
-// containers/folio/stripes directory for how to do that.
-folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", "2021.r2.6", stripesProdCertArn,
-    folioCluster, folioNamespace, [...moduleReleases]);
-folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", "dev.2021.r2.6", cublCtaCertArn,
-    folioCluster, folioNamespace, [...moduleReleases]);
+// These tags and containers are the result of a scripted build process. See the readme in the
+// containers/folio/stripes directory for how that works.
+const stripesContainerTag = `${config.require("stripes-container-tag")}`;
+const stripesContainerTagDev = `dev.${config.require("stripes-container-tag")}`;
+folio.deploy.stripes(false, "ghcr.io/culibraries/folio_stripes", stripesContainerTag,
+    stripesProdCertArn, folioCluster, folioNamespace, [...moduleReleases]);
+folio.deploy.stripes(true, "ghcr.io/culibraries/folio_stripes", stripesContainerTagDev,
+    cublCtaCertArn, folioCluster, folioNamespace, [...moduleReleases]);
 
 // Deploy the module descriptors.
 folio.deploy.deployModuleDescriptors("deploy-mod-descriptors",
-    folioNamespace, folioCluster, modules, [...moduleReleases]);
+    folioNamespace, folioCluster, folioDeployment.modules, [...moduleReleases]);

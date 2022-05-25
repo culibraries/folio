@@ -1,0 +1,31 @@
+encryptionsalt: v1:EtFJNYwF9Yc=:v1:XAR7MR5Q/NWEDHRY:Wqkrqko/QYoIvjb7Dm/ZhQCLZHhmhA==
+config:
+  aws-native:region: us-west-2
+  aws:region: us-west-2
+  folio:awsAccountId:
+    secure: v1:Fpng20Ir52+/jm2I:Mo+9V7ur6LMrAQoX92wUchMv8lajudq6tK7YkQ==
+  folio:data-export-user-accesskeyid:
+    secure: v1:e5x4aDXjM/fEJ9IX:N0LZlRh0MX9crfaHBVCx/PACyQD7uCq/Ml8XBX1O/rwe7+yL
+  folio:data-export-user-secretaccesskey:
+    secure: v1:oYP529hmXPHu3Ucw:xGqlGOjMITMsi+mlwe9fMt56UcVHYTWEiXs6VzNhRPAzJlBqd8e/MCCqMXOiY+Xxa2TBJZxKgYE=
+  folio:db-admin-password:
+    secure: v1:Br9G2MhanvSsnGWi:+JN5yCpIz0yi6ur1hyHNNMlucbEHPhvjGPQ=
+  folio:db-admin-user:
+    secure: v1:H+H8KOXhTggEGBo/:7bDVEAMeFU4XHH/5+9wjcmRKPxEmi11n
+  folio:db-host:
+    secure: v1:9PMGC8uRwQXsTzBQ:/XDXdEr0bFlBcrWooaVtX/+FmlCBbFythRU=
+  folio:db-user-name:
+    secure: v1:Ky5r8oBoE2nhupfz:8oRe3Tt56sDNEA28fh76g1aG6DrD
+  folio:db-user-password:
+    secure: v1:NtsnuQxpn5fW1JyZ:YNkm9rlTBTpG/Lulrwax5oWcc/iiYpC7fK8CaRQFsDUBBgIY
+  folio:release: R3-2021
+  folio:search-cookie:
+    secure: v1:01tkUUOvJI5x8IrL:bguqXQjTU7+t0rpuzgVR+id4p7NukWd8YJsQdTEUJ4NRh7BQ4vE8N0nnb2iRazv1
+  folio:search-password:
+    secure: v1:IQGqUlycgCprhYNn:/OLemTNzXuG+ynMx/arQL/wK8FPkjUF+tS8wn4G+0qfZEA==
+  folio:search-user: search-admin
+  folio:stripes-container-tag: 2021.r3.1
+  folio:superuser-name:
+    secure: v1:pBGI0uTEsdNL7LLe:+clz0o+iAuP3DyPn5OZNdxLU3cu/ExyKREo=
+  folio:superuser-password:
+    secure: v1:+D3kPgLzRWWkVJJY:muvK3mhzuGRrd/Sgp8pgyLNsdQq3oGYwfHfHmbyik8mHCxp2+gFiL0G1KeiptPI=

@@ -60,6 +60,8 @@ cubl-pulumi/folio/dev/.pulumi
 
  To create a new stack do `pulumi stack init`. Then create each secret individually for the new stack with new values with pulumi `config set <secret name> --secret` for secrets and `pulumi config set <config name>` for non secrets. To see existing secrets do `pulumi config`.
 
+ Or if that seems like a hassle take a look at the `pulumi config cp` command.
+
  #### Switching between stacks
 ```sh
 pulumi stack select <stack name>
@@ -268,6 +270,9 @@ Steps to use a non-colorado.edu domain:
 8. Rebuild the stripes container with the new okapi URL. See the Dockerfile and the `OKAPI_URL` variable there. See the instructions for building this container in /containers/folio/stripes.
 9. Change the tag in index.js for this container. Run `pulumi up`. Verify that the correctly tagged container is loaded in the pod by doing `describe pod`.
 
+### Switching the okapi container cert between cublcta domain and colorado.edu domain
+While stripes has 2 containers, one of which is built for cublcta.com access and the other of which is built for colorado.edu, there must be only one okapi gateway for the folio deployment. Because of this its cert needs to be applied to reflect whatever domain is being used to serve okapi. This is currently controlled by a the array in the `uilt.usesProdCerts`. If the colorado.edu domain is being used, the `prod` array needs to include the stack name and running `pulumi up` will apply the change.
+
 ### Getting colorado.edu certificates
 Fill out this form https://oit.colorado.edu/services/web-content-applications/ssl-certificates. This will generate a ticket for campus IT to work on the certificate request. Follow the instructions in the email that you get. For example, there is a second form that needs to be filled out to actually start the certificate issuance process through a 3rd party company that our IT contracts with.
 
@@ -365,6 +370,14 @@ To perform the swap do the following steps:
 
 Depending on the database you're swapping out, you may also need to reset some items in the stack config for the db's username and password. These will cascade to the db connection secret when you run `pulumi up`. Finally, you may need to restart your pods for the environment to pick up your changes. There is a convenience script called `restart-deployments.sh` for this.
 
+## Securing the supertenant
+For a system to be completely locked down you need to secure the supertenant. To do this run the `secure-supertenant.py` script. Get the superuser username and password by by running `pulumi config --show-secrets`.
+Then do:
+```
+python3 secure-supertenant.py -u <the username> -p <the password> -o https://<your okapi url>:9130
+```
+If all goes well you should see a message like `Successfully secured okapi`.
+
 ## Debugging
 
 ### Recovering from stack state de-sync
@@ -385,6 +398,15 @@ The solution is to do the following to remove the resource that the stack things
 The [pulumi troubleshooting doc](https://www.pulumi.com/docs/troubleshooting/#interrupted-update-recovery) also has other ideas for when other things go wrong.
 
 Generally try not to rename too many resources at once or do massive changes to a stack all in one go. Instead if you know you're going to do this, consider doing a `pulumi destroy` and then `pulumi up` instead. Sometimes this may not be possible, but it may save you some headaches if you can.
+
+#### If all else fails
+If your stack becomes horribly corrupt (you find yourself editing an exported stack's JSON file and can't seem to get it it to pass integrity checking), your last resort is to manually delete the resources and delete the stack and start over. This is less horrible than it sounds since the AWS console handles clearing up the many dependencies for things like a VPC.
+
+Most of the resources that get deployed are tagged with the stack name as the `Environment` which helps to make sure you're not deleting production resources. The main things you want to get are:
+* The EKS Cluster in the EKS console. Make sure you're deleting the right one obviously, but this will neatly delete all the items associated with it.
+* The RDS instance.
+* The OpenSearch instance.
+* The VPC, which will prompt you to first delete the network interface. Follow this advice making sure to delete the one it tells you to delete.
 
 ### Authentication issues
 

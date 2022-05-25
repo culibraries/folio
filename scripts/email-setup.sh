@@ -14,7 +14,7 @@
 # You can get a token by going to /settings/developer in the folio UI.
 # Ask a colleague how to get the SMTP username and password.
 
-OKAPI="https://folio-iris-okapi.cublcta.com:9130"
+OKAPI="https://folio-kiwi-okapi.cublcta.com:9130"
 CONFIGS=$(cat <<EOF
 [
     {

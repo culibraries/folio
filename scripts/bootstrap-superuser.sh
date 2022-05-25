@@ -6,7 +6,7 @@
 # TODO Doing this outside of the cluster is not ideal since it means that the cluster
 # is exposed before it is done.
 # This URL has to be available. Port forwarding won't work here.
-OKAPI_URL="https://folio-iris-okapi.cublcta.com:9130"
+OKAPI_URL="https://folio-kiwi-okapi.cublcta.com:9130"
 # The first time you run this for a deployment, comment this line out.
 # Any subsequent times (like after installing a module), comment it in.
 #FLAGS="--only-perms"

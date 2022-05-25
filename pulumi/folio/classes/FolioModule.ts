@@ -52,7 +52,13 @@ export class FolioModule {
             // memory limit isn't increased.
             this.limitsMemory = "1500Mi"
             this.requestsMemory = "500Mi";
-        } else {
+        } else if (name.startsWith("mod-source-record-storage")) {
+            this.limitsMemory = "1500Mi"
+            this.requestsMemory = "500Mi";
+        } else if (name.startsWith("mod-search")) {
+            this.limitsMemory = "1500Mi"
+            this.requestsMemory = "500Mi";
+        }else {
             this.limitsMemory = "512Mi"
             this.requestsMemory = "400Mi";
         }

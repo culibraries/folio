@@ -75,8 +75,7 @@ export module deploy {
                 toPort: 443,
                 protocol: "tcp",
                 cidrBlocks: ["0.0.0.0/0"]
-            },
-            {
+            }, {
                 description: "Allow inbound traffic to okapi",
                 fromPort: 9130,
                 toPort: 9130,
