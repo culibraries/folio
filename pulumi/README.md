@@ -161,15 +161,10 @@ At this point all you'll need to do is register your modules to your tenant and 
 
 2. Assuming a role. You should consider doing this in a separate terminal session because Pulumi uses your AWS credentials and `kubectl` needs to use the assumed role.
 
-    TODO Export the role name so that it's in the stack state.
-
-    TODO Explain how to get the role name from pulumi.
-
-    If you didn't create the cluster you'll need to assume the role associated with it. You need to get the role ARN.
+    If you didn't create the cluster you'll need to assume the role associated with it. You need to get the role ARN. Do this by running the following command for the current stack:
 
     ```sh
-    aws iam list-roles
-    # In the response use `/folio-cluster-admin-role` to find the associated role and note the `Arn`
+    pulumi stack output folioClusterAdminRoleArn
     ```
 
     Now assume the role:

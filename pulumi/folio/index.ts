@@ -181,6 +181,8 @@ const folioInstanceProfile =
 // See the readme file for how this is done.
 const folioClusterAdminRoleName = "folio-cluster-admin-role";
 const folioClusterAdminRole = iam.deploy.awsRBACRole(folioClusterAdminRoleName, tags);
+// Run pulumi stack output folioClusterAdminRoleArn to get this arn in the console.
+export const folioClusterAdminRoleArn = folioClusterAdminRole.arn;
 
 // Create an EKS cluster.
 const folioClusterName = "folio-cluster";
