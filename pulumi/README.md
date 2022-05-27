@@ -149,59 +149,69 @@ After running `pulumi up` without error, you should have a fully baked FOLIO sys
 At this point all you'll need to do is register your modules to your tenant and secure the supertenant. See the scripts in the scripts directory for how to do that.
 
 ### Connect to a stack that you didn't create
+If you didn't create the stack, you'll need to assume the IAM role that has been created in order to allow you to get access to `kubectl` commands for the cluster. This process requires that you have two terminal sessions open, and that you perform certain commands in each terminal session.
 
-1. Get the kubeconfig file from pulumi.
+Prerequisites:
+1. You need to be logged into to pulumi and should see your stacks by doing `pulumi stack ls`.
+2. Select your stack by doing `pulumi stack select <stack name>`.
 
-    Update your kubeconfig file with one that will give you access to the cluster:
+#### Termainal session 1
+Get the kubeconfig file from pulumi. This exports your kubeconfig file with one that will give you access to the cluster:
 
-    ```sh
-    pulumi stack output kubeconfig > ~/.kube/my_special_config
-    export KUBECONFIG=~/.kube/my_special_config
-    ```
+```sh
+pulumi stack output kubeconfig > ~/.kube/my_special_config
+```
 
-2. Assuming a role. You should consider doing this in a separate terminal session because Pulumi uses your AWS credentials and `kubectl` needs to use the assumed role.
+#### Terminal Session 2
+Assuming a role. You're doing this in a separate terminal session because Pulumi uses your AWS credentials and `kubectl` needs to use different AWS credentials (the ones you get when you assume the role).
 
-    If you didn't create the cluster you'll need to assume the role associated with it. You need to get the role ARN. Do this by running the following command for the current stack:
+Tell `kubectl` where to find your pulumi config that you exported to a file in terminal session 1.
 
-    ```sh
-    pulumi stack output folioClusterAdminRoleArn
-    ```
+```sh
+export KUBECONFIG=~/.kube/my_special_config
+```
 
-    Now assume the role:
+Next get the role ARN. Do this by running the following command for the current stack:
 
-    ```sh
-    aws sts assume-role --role-arn "<role arn>" --role-session-name AWSCLI-Session
-    ```
+```sh
+pulumi stack output folioClusterAdminRoleArn
+```
 
-    This will output new temporary credentials. Set them in your env. You'll unset them later.
+Now assume the role:
 
-    ```sh
-    export AWS_ACCESS_KEY_ID=<the role access key id>
-    export AWS_SECRET_ACCESS_KEY=<the role secret access key>
-    export AWS_SESSION_TOKEN=<the session token>
-    ```
+```sh
+aws sts assume-role --role-arn "<role arn you just got>" --role-session-name AWSCLI-Session
+```
 
-    To check that you've assumed the role:
+This will output new temporary credentials. Set them in your env using the following exports. You'll unset them later.
 
-    ```sh
-    aws sts get-caller-identity
-    ```
+```sh
+export AWS_ACCESS_KEY_ID=<the role access key id>
+export AWS_SECRET_ACCESS_KEY=<the role secret access key>
+export AWS_SESSION_TOKEN=<the session token>
+```
 
-    You should now see the details of the role you've assumed. And then this should work:
+To check that you've assumed the role:
 
-    ```sh
-    kubectl get nodes
-    ```
+```sh
+aws sts get-caller-identity
+```
 
-    To stop assuming the role do:
+You should now see the details of the role you've assumed. And then this should work (as well as any other `kubectl` command for the cluster). Don't forget to get the namespace with `pulumi stack output folioNamespaceName`.
 
-    ```sh
-    unset AWS_ACCESS_KEY_ID
-    unset AWS_SESSION_TOKEN
-    unset AWS_SECRET_ACCESS_KEY
-    ```
+```sh
+kubectl -n <your namespace> get pods
+```
 
-    The aws cli will still work because it doesn't store credentials.
+To stop assuming the role do (or just exit your terminal session):
+
+```sh
+unset AWS_ACCESS_KEY_ID
+unset AWS_SESSION_TOKEN
+unset AWS_SECRET_ACCESS_KEY
+```
+
+The aws cli will still work because it doesn't store credentials.
 
 #### References for IAM security
 * [Assume an IAM role using the AWS CLI](https://aws.amazon.com/premiumsupport/knowledge-center/iam-assume-role-cli/)
