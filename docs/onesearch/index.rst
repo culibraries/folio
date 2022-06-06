@@ -2,8 +2,10 @@ Presentations and Demos
 ========================
 
 ------------------------------
-EBSCO Discovery Service (EDS)
+New OneSearch (EBSCO Discovery Service)
 ------------------------------
 
-* `EBSCO Discovery Service Overview <https://github.com/culibraries/folio/wiki/EDS-Overview>`_
-* `EDS Communications Timeline (Google Sheets) <https://docs.google.com/spreadsheets/d/18ueIBp0fUTHCXSqLeSHUCu0gM6eDR1y6k4C0GDgP2Vw/edit#gid=799650960>`_
+* (April 18, 2022) `Introduction to the New OneSearch <https://o365coloradoedu.sharepoint.com/sites/LIB-MO-DAM-DS/SitePages/Introduction-to-the-New-OneSearch.aspx>`_
+* (April 14, 2022) `STAT New OneSearch Demo [Sharepoint] <https://o365coloradoedu.sharepoint.com/sites/LIB-MO-DAM-DS/SitePages/New-OneSearch-Demo.aspx>`_
+* (April 6, 2022)  `The New OneSearch and the Catalog: How Do They Interact? [Sharepoint] <https://o365coloradoedu.sharepoint.com/sites/LIB-CUBCatCoP/SitePages/Recording----The-New-OneSearch-and-the-Catalog--How-Do-They-Interact-%2C-Apr.-6%2C-2022%2C-10-11am.aspx>`_
+* (November 2021) `EDS Discovery Days - Notes [Google Drive] <https://docs.google.com/document/d/1kZTFct2t-5HrjnK42HcMIAQKgpD-C4mrnwU8HRO7ja8/edit#heading=h.c98ixhx38rij>`_
