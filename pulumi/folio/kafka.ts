@@ -14,18 +14,18 @@ export module deploy {
             {
                 namespace: namespace.id,
                 name: name,
-                chart: "kafka",
                 // Chart version is 14.4.3 which installs Kafka v2.8.1.
-                version: "14.4.3",
-                repositoryOpts: { repo: "https://charts.bitnami.com/bitnami" },
+                // This is a local copy because the version we currently have
+                // deployed is not in the remote repo anymore.
+                chart: "./helmCharts/kafka",
                 // See other chart options here https://artifacthub.io/packages/helm/bitnami/kafka
                 values: {
                     replicaCount: 3
                 },
             }, {
-                provider: cluster.provider,
-                dependsOn: dependsOn
-            });
+            provider: cluster.provider,
+            dependsOn: dependsOn
+        });
         return instance;
     }
 }
