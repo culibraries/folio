@@ -58,7 +58,7 @@ export class FolioModule {
         } else if (name.startsWith("mod-search")) {
             this.limitsMemory = "1500Mi"
             this.requestsMemory = "500Mi";
-        } else if (name.startsWith("mod-users")) {
+        } else if (name === "mod-users") {
             // mod-users is consistently crashing with an OOM error.
             this.limitsMemory = "1024Mi"
             this.requestsMemory = "900Mi";
