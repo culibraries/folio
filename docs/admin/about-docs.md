@@ -32,7 +32,7 @@ Requires
     git checkout -n [new-branch-name]
     ```
 
-1. Make you changes and commit your work.
+1. Make your changes and commit your work.
 
     ```sh
     git add *  # Stages all new and changed files
