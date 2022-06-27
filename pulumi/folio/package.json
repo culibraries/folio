@@ -3,7 +3,7 @@
     "dependencies": {
         "@pulumi/aws": "^5.4.0",
         "@pulumi/aws-native": "^0.16.0",
-        "@pulumi/awsx": "^0.33.0",
+        "@pulumi/awsx": "^0.40.0",
         "@pulumi/eks": "^0.37.1",
         "@pulumi/kubernetes": "^3.16.0",
         "@pulumi/postgresql": "^3.3.0",
