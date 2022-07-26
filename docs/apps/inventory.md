@@ -30,6 +30,17 @@ Under the Search & filter pane, click on the *Item* search box and select **Barc
     - *CAT LEVEL - TBD: Could this be added under the **Add statistical code** pull down menu?*
 1. Click *Save and close* at the bottom
 
+###Importing a new record from OCLC into Inventory
+
+1. Copy the OCLC WorldCat identifier from the OCLC master record
+1. Log into FOLIO and go to the Inventory App. In the default pane, click on Actions -> Import
+1. In the Single Record Import dialog box (our current default is an OCLC WorldCat source), paste or type in the OCLC WorldCat identifier in the box
+4. Click Import
+
+*A new instance record is created along with an underlying source record storage (SRS) record. In this case, it will be a MARC source record. Only the editable [Administrative Data](https://lotus.docs.folio.org/docs/metadata/inventory/#administrative-data_) elements in the instance can be edited directly in Inventory. Any MARC field edits to the instance record must be made by editing the source record using [quickMARC.](https://lotus.docs.folio.org/docs/metadata/inventory/quickmarc/#editing-a-marc-record-using-quickmarc)*
+
+For documentation on Holdings and Item records, please see the Adding/Editing Holdings Record and Adding/Editing Item Record sections.
+
 ### Processes that need to be addressed
 
 - Verify call number function to check for potential conflict in the shelf list
