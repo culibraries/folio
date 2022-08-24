@@ -9,13 +9,16 @@ Optimization and
 Discovery <https://o365coloradoedu.sharepoint.com/sites/LIB-MO-DAM-DS/SitePages/Metadata-Optimization-and-Discov-Section.aspx>`__.
 Please see our `Management
 Document <https://docs.google.com/document/d/1ssiCgnfIJQ9wTWE7E2BMVt8mfAj6LngcFatI7pdyPCQ/edit#>`__
-for more information.
+for recent updates.
 
 Current Products are the New EBSCO Discovery Service UI, Full Text
 Finder, and Publication Finder.
 
 `Feedback and
 reports <https://drive.google.com/drive/folders/1mBA1F5BoRgzGSiOlqOSKfzPDCrkgfZ-4>`__
+can be found in the FOLIO drive.
+
+Analytics data <https://drive.google.com/drive/folders/1mBA1F5BoRgzGSiOlqOSKfzPDCrkgfZ-4>`__
 can be found in the FOLIO drive.
 
 Authentication
