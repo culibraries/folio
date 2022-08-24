@@ -59,6 +59,7 @@ Nolana initial release         2022.r3.0
    :hidden:
 
    onesearch/index.rst
+   onesearch/ebscoadmin.rst
 
 .. toctree::
    :maxdepth: 1
