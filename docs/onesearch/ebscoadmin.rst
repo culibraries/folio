@@ -1,6 +1,3 @@
-EDS Wiki Rough Draft
-====================
-
 EDS Administration
 ==================
 
